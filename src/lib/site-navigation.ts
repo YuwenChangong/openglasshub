@@ -10,7 +10,7 @@ const navigation = [
   { key: "products", label: "产品", href: "/products/" },
 ] as const;
 export const mainNav = isGazeLauncherPublicEnabled()
-  ? [...navigation, { key: "launcher", label: "Gaze Launcher", href: "/gaze-launcher/" }]
+  ? [...navigation, { key: "launcher", label: "Gaze Launcher", href: "/gaze-launcher/" } as const]
   : navigation;
 
 export function getMainNav(locale: ResolvedLocale) {

@@ -1,5 +1,6 @@
 ---
 import ProductVisual from "./ProductVisual.astro";
+import type { ComponentProps } from "astro/types";
 import { getUiMessages } from "../../lib/i18n/catalog";
 import { resolveLocale } from "../../lib/i18n/locale";
 import type { getPublishedDeviceBySlug } from "../../lib/public-device-data";
@@ -23,6 +24,8 @@ const gallery = product.media.images.map(image=>({...image,url:safeCatalogMediaU
 const primary = gallery.find(image=>image.hero) ?? gallery[0];
 const imageUrl = primary?.url ?? safeCatalogMediaUrl(product.productImageUrl,r2Base);
 const imageAlt = primary ? (localeContext.locale === "zh-CN" ? primary.altZh : primary.altEn) : product.media.imageAlt;
+// mapPublicDevice validates this union before returning its widened string type.
+const placeholderType = product.media.placeholderType as NonNullable<ComponentProps<typeof ProductVisual>["placeholderType"]>;
 const links = product.externalLinks.map((link) => ({ ...link, href: safeCatalogExternalUrl(link.url) })).filter((link) => link.href);
 const publicSources=sources.map(source=>({...source,href:safeCatalogExternalUrl(source.url)})).filter(source=>source.href);
 const sourceTypeLabel=(type:string)=>type==="reputable_secondary"?text.productSourceSecondary:type==="regulatory_document"?text.productSourceRegulatory:type==="archived_official"?text.productSourceArchived:text.productSourceOfficial;
@@ -58,7 +61,7 @@ const summary = product.normalizedCatalog ? selected
     </div>
     <div class="product-detail__visual">
       {imageUrl ? <><img data-catalog-image src={imageUrl} alt={imageAlt} width="640" height="400" /><p data-image-fallback hidden>{localeContext.locale==="zh-CN"?"图片暂不可用":"Image unavailable"}</p></> : (
-        <ProductVisual brandMark={product.brandMarkText} title={product.name} categoryLabel={product.typeLabel} placeholderType={product.media.placeholderType} />
+        <ProductVisual brandMark={product.brandMarkText} title={product.name} categoryLabel={product.typeLabel} placeholderType={placeholderType} />
       )}
     </div>
   </header>

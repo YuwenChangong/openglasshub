@@ -1,12 +1,15 @@
 ---
 export const prerender = false;
 
+import type { MDXInstance } from "astro";
 import CommunityLayout from "../../layouts/CommunityLayout.astro";
 import { resolveDocumentLocale } from "../../lib/i18n/document-locale";
 import { selectEditorialVariant } from "../../lib/i18n/editorial-variants";
 
+type GuideEntry = Pick<MDXInstance<{ title: string; description?: string }>, "default" | "frontmatter">;
+
 const slug = Astro.params.slug ?? "";
-const modules = import.meta.glob("../../content/docs/guides/*.mdx");
+const modules = import.meta.glob<GuideEntry>("../../content/docs/guides/*.mdx");
 const loadEntry = modules[`../../content/docs/guides/${slug}.mdx`];
 
 if (!loadEntry) {
@@ -20,13 +23,7 @@ const reviewedModules = {
 };
 const reviewedLoader = Object.hasOwn(reviewedModules, selection.moduleKey)
   ? reviewedModules[selection.moduleKey as keyof typeof reviewedModules] : undefined;
-const entry = (await (reviewedLoader ? reviewedLoader() : loadEntry())) as {
-  default: unknown;
-  frontmatter: {
-    title: string;
-    description?: string;
-  };
-};
+const entry = (await (reviewedLoader ? reviewedLoader() : loadEntry())) as GuideEntry;
 
 const Content = entry.default;
 import { getUiMessages } from "../../lib/i18n/catalog";

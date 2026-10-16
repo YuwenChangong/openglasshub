@@ -1,7 +1,7 @@
 # Public Beta Current State
 
-Authoritative release/progress baseline. Updated 2026-10-16 by offline migration
-reconciliation, fresh disposable Supabase replay and focused Playwright regression.
+Authoritative release/progress baseline. Updated 2026-10-16 by offline candidate
+type-gate repair, historical source comparison and focused local regression.
 This task Production requests/writes/deployments0. Earlier separately approved
 read-only audit remains historical evidence, not permission for another live read.
 Read this first for every task. This document is not an authorization or GO.
@@ -20,7 +20,9 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
   mapping above is reused historical evidence, not a newly returned Git SHA.
 - Audited local release candidate: `4299aa3afa45dc8c30ebbe2e63a17fcd6bbb0524`.
   Latest tested formal-migration candidate: `9bef6e8a`; same seven product fixes,
-  new non-overwriting quota adoption migration. Local build PASS/type gate FAIL;
+  new non-overwriting quota adoption migration. Its type-gate failure is now
+  resolved on the typecheck-fix branch below: local build/ratchet PASS,56 retained
+  historical diagnostics,not zero-error compiler PASS;
   no merge/deploy and no new Production source-Commit verification.
   First post-release product fix: `9161ca71e6fcceef984c8129f156667d536c7a44`,
   whose parent is the released source. Later product fixes are included below;
@@ -96,9 +98,12 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 - Previous scoped branch: `codex/production-readonly-release-audit-v1-20261016`,
   based on `f1b36c85`; bounded owner-approved metadata reads and local audit records.
   No merge, push, migration execution, application RPC call or new test framework.
-- Current scoped branch: `codex/release-candidate-migration-reconciliation-20261016`,
+- Previous scoped branch: `codex/release-candidate-migration-reconciliation-20261016`,
   based on `bf4df65f`; owner-approved local formal migration/QA integration only.
   Production write/deployment/merge permissions remain absent.
+- Current scoped branch: `codex/release-candidate-typecheck-fix-20261016`, based on
+  `3323cb85`; minimal owner-approved type corrections and directly affected local
+  checks only. READY_FOR_OWNER_MERGE_APPROVAL,not merged/deployed or Beta GO.
 - Recovery Version `1b327fed-be4b-4873-9fcd-6514e014916c`: verified content [R],
   PRE-HARDENING ONLY. Never use it as the default post-Hardening recovery target.
 - `CATALOG_HOLD=ACTIVE`; writers, queues and retries remain held. Current continued
@@ -147,6 +152,7 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | Current release consolidation | BLOCKED for release approval, not a new proven application failure | All seven product-fix commits included in candidate4299aa3a; two new canonical migrations and local-only rate-limit fixture require Production parity review. Group1 remains10/14,UI02 partial,UI03 BLOCKED. No merge/deploy/test replay |
 | Production Read-Only Release Audit v1 | Database ledger VERIFIED; two migrations MISSING; rate-limit RPC COMPATIBLE for checked static contract | Five reads: DB2 READ ONLY + CF3 GET,all successful,no retry. Current Worker152/b2b62ec9 at100%; required Secret names present. Plain-variable targets/modes and post-Hardening recovery not freshly verified. No function invocation or state change |
 | Formal migration reconciliation |56 formal migrations replayed;26/26 focused local checks and3/3 static tests PASS | No extra quota-proposal installation. Existing-object normal migration adoption preserves OID/source/ACL/owner; security/ACL/overload/comment-boundary drift fails; interrupted create/grant rolls back. Astro local build PASS, existing type ratchet FAIL; merge BLOCKED |
+| Candidate type gate repair | Original ratchet PASS;244 errors reduced to56 frozen historical errors;11/11 focused scripts PASS; local build PASS | No gate/baseline/dependency/strictness changes; all56 migration blobs and7 product fixes preserved. READY_FOR_OWNER_MERGE_APPROVAL only; Production/UI03 obligations unchanged |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -155,7 +161,46 @@ timeout FAIL, unknown upload side effects and retained consumed Claims stay unch
 Rows above preserve chronological scoped outcomes; earlier R2 BLOCKED rows are
 historical, not a reversal of the latest isolated R2 PASS.
 
-## Release Candidate Formal Migration Reconciliation (2026-10-16)
+## Release Candidate Typecheck Gate Closure (2026-10-16)
+
+- Full diagnostic inventories, attribution and verification are in
+  `docs/ops/reconciliation/release-candidate-typecheck-safe.json` and the scoped
+  `release-candidate-typecheck.md` review. No new QA framework or live test.
+- Package gate `test:astro-check-ratchet` is a frozen diagnostic ratchet, not a
+  zero-error compiler gate; no tracked CI workflow found. Before244/90 paths,
+  after56/16 paths, zero new/changed-anchor/unparsed-path diagnostics. Raw Astro
+  still exits1 for56 explicitly retained historical diagnostics. No baseline
+  refresh, strict weakening, suppression, dependency or CI change.
+- Same-toolchain historical released source has246 errors. All244 initial
+  candidate diagnostics match historical path/code/message AND source line;
+  candidate-introduced0,baseline-existing244. Previous media fix removed2.
+  Current Production source/parity still UNKNOWN; no fresh live inference.
+- Corrections only cover environment declarations, discriminated validation and
+  report unions, nullable client/link/media contracts, literal/DOM/payload types,
+  MDX/heading types and schema-backed query projections. Runtime Auth/admin/RLS,
+  request budgets, cleanup rules and all56 migration blobs remain unchanged.
+- Original ratchet and loopback-only local-config Astro build PASS. Eleven
+  affected existing scripts PASS, including real local headless catalog browser
+  comparison/mobile checks and editorial SSR; external requests0 in final runs.
+  Test-only CRLF/stale fixture/update-check/click prerequisites corrected, with
+  original failed attempts disclosed. No forced clicks, relaxed assertions or
+  product layout change. Local diff/contract checks completed; no independent
+  approval claimed. Existing compiler/CSS warnings retained.
+- No DB/container/account fixture needed or created; test servers/browser contexts
+  closed. Historical source snapshot remains in the owned temporary directory:
+  cleanup commands were policy-blocked,not reported deleted. It contains source
+  plus a dependency junction,no test credentials or database. Reuse
+  prior56-migration26+3 results,16 RLS,23 business and isolated R2 evidence; no replay.
+- CANDIDATE_FIXES=7/7; MIGRATION_SET_UNCHANGED=true;
+  MERGE_READINESS=READY_FOR_OWNER_APPROVAL,not merged/deployed. GROUP1_LOCAL=10/14,
+  UI02=LOCAL_PARTIAL_PASS,UI03=BLOCKED,R2=PASS_ISOLATED,PRODUCTION_PARITY=UNKNOWN.
+- NEXT_SINGLE_ACTION: owner review/approve the candidate for code merge preparation;
+  missing Production migrations, deployment identity/recovery and remaining live
+  acceptance still require separate approval. No main merge/push/deploy here.
+  PRODUCTION_REQUESTS=0; PRODUCTION_WRITES=0; DEPLOYMENTS=0;
+  MAX_ADDITIONAL_COST_USD=0; CATALOG_HOLD=ACTIVE; PUBLIC_BETA_GO=NOT_AUTHORIZED.
+
+## Release Candidate Formal Migration Reconciliation (2026-10-16, Historical Gate Result)
 
 - Owner approved offline implementation/review and local testing only. Independent
   branch based on bf4df65f; code/migration commits93fa851b,99529b6e,9bef6e8a. Product

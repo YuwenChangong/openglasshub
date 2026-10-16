@@ -21,4 +21,6 @@ export function createSSRClient(env: {
 export interface CloudflareEnv {
   SUPABASE_URL: string;
   SUPABASE_ANON_KEY: string;
+  R2_PUBLIC_BASE_URL?: string;
+  AUTH_CAPTCHA_MODE?: string;
 }

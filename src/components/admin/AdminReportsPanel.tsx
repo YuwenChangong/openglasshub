@@ -506,8 +506,8 @@ export default function AdminReportsPanel({ localeContext = resolveLocale({ acce
       profileLabel(report.target?.author_profile ?? null, ""),
       report.target?.title ?? "",
       report.target?.excerpt ?? "",
-      report.target?.circle?.name ?? "",
-      report.target?.post?.title ?? "",
+      report.target && "circle" in report.target ? report.target.circle?.name ?? "" : "",
+      report.target && "post" in report.target ? report.target.post?.title ?? "" : "",
     ]
       .join(" ")
       .toLowerCase();

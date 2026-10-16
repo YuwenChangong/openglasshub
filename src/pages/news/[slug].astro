@@ -88,7 +88,7 @@ const discussionHref = article ? `/search/?q=${encodeURIComponent(article.title)
         <div class="news-article-page__body">
           {contentBlocks.map((block) => {
             if (block.type === "heading") {
-              const Tag = `h${block.level}` as keyof astroHTML.JSX.IntrinsicElements;
+              const Tag = `h${block.level}` as const;
               return (
                 <Tag class={`news-article-page__heading news-article-page__heading--h${block.level}`}>
                   {block.segments.map((segment) =>
