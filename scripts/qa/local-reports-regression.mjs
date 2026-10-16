@@ -4,6 +4,23 @@ import path from 'node:path';
 export async function runReportsRegression(h) {
   const {s,sql,check,pages,contexts,goto,browserApi,responseFor,currentSession,postId,out,origin}=h;
   const p=pages.ADMIN,q=v=>"'"+String(v).replaceAll("'","''")+"'";
+  if(process.env.OGH_E2E_REPORTS_STACK) {
+    await h.check('REPORTS_B_HTTP500_STACK',async()=>{
+      if(process.env.OGH_E2E_REPORTS_STACK==='sequence') {
+        const fixture=await browserApi(pages.B,'/api/forum/reports','POST',{target_type:'post',target_id:postId,reason_code:'spam',reason_text:'Disposable exact-stack fixture'});
+        assert.equal(fixture.status,201);
+        assert.equal((await goto(pages.A,'/admin/reports/')).status(),200);
+        await pages.A.locator('.admin-state-message.admin-error').waitFor();
+        assert.equal((await browserApi(pages.A,'/api/admin/reports')).status,403);
+        assert.equal((await browserApi(pages.A,'/api/admin/reports/'+fixture.data.report.id+'/action','POST',{action:'hide_target'})).status,403);
+      }
+      const response=await goto(pages.B,'/admin/reports/');assert.equal(response.status(),200);
+      await pages.B.locator('.admin-state-message.admin-error').waitFor();
+      assert.equal(await pages.B.locator('.admin-reports-toolbar').count(),0);
+      return {actor:'B',method:'GET',path:'/admin/reports/',htmlStatus:response.status(),forbiddenUi:true};
+    },'reports');
+    return;
+  }
   const scalar=async query=>(await sql(s,query)).stdout.trim().split(/\r?\n/)[0];
   const matcher=u=>u.origin===origin&&u.pathname==='/api/admin/reports';
   const metrics={listRequests:0,listResponses:0,listFailed:0,deniedByLocalGuard:0};

@@ -57,9 +57,12 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 - Previous scoped branch: `codex/reports-admin-p1-e2e-20261015`, based on
   `63f3b33e`; owner-approved stable reports dependencies/cancellation and targeted
   local regression. No API/Auth/RLS/schema/style/network policy change.
-- Current scoped branch: `codex/reports-ui03-500-fix-20261016`, based on
+- Previous scoped branch: `codex/reports-ui03-500-fix-20261016`, based on
   `850355bc`; exact local500 reproduction and targeted report UI/RLS evidence.
   Root cause remains UNKNOWN; no speculative product/permission/runtime patch.
+- Current scoped branch: `codex/reports-http500-stack-20261016`, based on
+  `999d8c4b`; two bounded local entry reproductions, real Miniflare dispatch
+  stack captured. Downstream native disconnect cause still UNKNOWN; no product fix.
 - Recovery Version `1b327fed-be4b-4873-9fcd-6514e014916c`: verified content [R],
   PRE-HARDENING ONLY. Never use it as the default post-Hardening recovery target.
 - `CATALOG_HOLD=ACTIVE`; writers, queues and retries remain held. Current continued
@@ -99,6 +102,7 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | Minimal R2 setup and remaining UI continuation | Real R2 BLOCKED; new14 PASS/1 FAIL in existing local runner | Eight authenticated routes/resources and local notification/content checks PASS. ADMIN reports repeats reads without user action; confirmed local P1, not repaired. Group1 stays10/14; UI-03 FAIL. Protected blank ignored R2 file prepared; no real key loaded |
 | Reports admin P1 repair | Idle-read loop CLOSED locally; latest distinct14 PASS/1 FAIL | Stable auth dependencies and cancellation preserve refresh/review/Auth behavior. Idle0 extra reads over1200ms; real mobile/role-change checks PASS. Ordinary report page locally returns500 in denial/navigation path, cause UNKNOWN; UI-03 not closed. Original10/14 and16/16 local RLS retained |
 | Reports UI03 local500 followup | Latest15 PASS/1 FAIL; reports11/12 PASS | Real user report UI201 and database reporter verification; A/B own rows1/cross rows0, ADMIN both, anon0 via ordinary RLS. Eight5-second idle segments add0 list requests. GET /admin/reports/ for B still500; direct Worker comparison200 is not causal proof. No product/GRANT/RLS change; UI03 FAIL,10/14 unchanged |
+| Reports HTTP500 exact stack | CAPTURED at Miniflare entry.worker.js:4733:22 | B-only200/forbidden UI; original minimal A-denial prefix then B still500. Local service.fetch rejects Network connection lost; catch4736 generates182-byte plain500. No downstream/root stack or safe fix proven. Two-reproduction limit reached; UI03 FAIL, other valid evidence reused |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -121,6 +125,52 @@ timeout FAIL, unknown upload side effects and retained consumed Claims stay unch
   path. Production-bound Preview and actor configurations must not be reused.
 - Owned browser contexts closed; owned Astro daemon stopped and local test ports
   verified released. No new Native QA authorization, Claim, GO or deployment.
+
+## Reports HTTP500 Exact Stack (2026-10-16)
+
+- Exactly2 new local reproductions using the unchanged guarded build, local
+  Supabase55 migrations, ordinary headless Chrome/isolated contexts, HTTPS4328,
+  remote/watch/liveReload/inspector disabled and loopback-only outbound policy.
+  No full reports/business/Auth13/RLS16/Turnstile suite or R2 activity.
+- Run `9d1882f5dec1`:4 necessary login/context prerequisites plus B-only GET
+  /admin/reports/ PASS200, forbidden UI and no admin toolbar. B identity alone
+  does not invariably cause500. This is not a fix or erasure of prior failures.
+- One additional run `6245ffd16cfe`: restore only original minimal prefix
+  (owned report fixture, A HTML200/forbidden UI, A admin list/action403), then
+  B GET /admin/reports/ FAIL500. Four prerequisites PASS. No browser redirect;
+  no third attempt. Direct same-running-Worker comparison200 remains diagnostic,
+  not a replacement for the failed browser navigation or authorization proof.
+- Actual182-byte plain-text500 includes `Error: Network connection lost.` and
+  `at async Object.fetch (.../node_modules/miniflare/dist/src/workers/core/entry.worker.js:4733:22)`.
+  Installed source at4733 is `await service.fetch(request)`;4735-4736 catches
+  and returns the exception stack as500. This proves the observed service-call
+  rejection and local500 conversion, NOT the cause inside the downstream service,
+  an Astro/RLS throw, cancellation, permission failure or a proxy-only root cause.
+- Existing runtimeError listener and a reversible entry logger hook captured no
+  deeper exception. Source explains the gap: this core catch returns a Response
+  without throwing to those callbacks/pretty-error handling. Hook/listener removed
+  after the bounded run; only opt-in safe response-stack/request metadata in the
+  existing QA script remains. No new inspector, proxy, platform or network permission.
+- Both compared inputs use GET/HTTPS/127.0.0.1:4328/same static pathname and worker
+  configuration. Browser HTML navigation has Cookie but no Authorization header;
+  direct input supplies neither and no explicit headers. Only header names and
+  presence, no values, are retained. All internally forwarded effective headers/
+  downstream Host and identity are not observed; no causal header equivalence
+  claim. Browser identity is verified before navigation, not exported as a bearer
+  header on this HTML request. No request/response body, Cookie or JWT dump.
+- Miniflare5.20260820.0-alpha/Wrangler4.125.0 local source identities recorded,
+  not upgraded or blamed on version alone. No application/schema/role/config
+  changes, retry-to-green, swallowed failure or fabricated200. FIX=BLOCKED and
+  root cause UNKNOWN. ADMIN access/actions, reporter privacy/normal flow and idle
+  regression evidence from the unchanged preceding run are reused, not rerun.
+- UI03 stays FAIL and GROUP1 stays10/14; no Production parity or release PASS.
+  Both owned databases/volumes/actors/DPAPI credentials/TLS and processes cleaned;
+  active pointer and app/database ports absent. Production/third-party requests,
+  writes/deploy/push0; Catalog ACTIVE, USD0 and Beta not authorized.
+- Evidence: `output/playwright/local-supabase-e2e/REPORTS_HTTP500_STACK_REVIEW_SAFE.md`
+  and both original run directories. Exact remaining gap: the downstream workerd
+  service's native disconnect reason below this service.fetch boundary. No more
+  browser reproductions or speculative permission/SSR/transport changes this turn.
 
 ## Reports UI03 Local500 Followup (2026-10-16)
 

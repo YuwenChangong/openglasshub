@@ -147,6 +147,15 @@ export async function runCases({s,root,environment,command,sql}) {
     async function goto(p,route) { const r=await p.goto(origin+route,{waitUntil:'domcontentloaded',timeout:20000});if(r?.status()>=500){
       const text=await r.text(),e=Error('APPLICATION_HTTP_'+r.status());
       const diagnostic=text.match(/(?:TypeError|ReferenceError|Error):[^\n<]{1,160}/)?.[0];
+      const exceptionFrames=text.split(/\r?\n/).filter(line=>/^\s*at [\w.$<>\[\] :/\\()@-]+:\d+:\d+\)?\s*$/.test(line))
+        .filter(line=>line.includes(root)||line.includes(root.replaceAll('\\','/'))||line.includes('node:internal/'))
+        .slice(0,20).map(line=>line.trim().replaceAll(root,'<repo>').replaceAll(root.replaceAll('\\','/'),'<repo>'));
+      const request=r.request(),headers=await request.allHeaders(),redirectPaths=[];
+      for(let item=request;item;item=item.redirectedFrom())redirectPaths.unshift(new URL(item.url()).origin===origin?new URL(item.url()).pathname:'[NONLOCAL]');
+      const requestComparison={browser:{protocol:new URL(request.url()).protocol,hostMatchesLocalOrigin:new URL(request.url()).host===new URL(origin).host,
+        path:new URL(request.url()).pathname,method:request.method(),headerNames:Object.keys(headers).sort(),cookiePresent:!!headers.cookie,authorizationHeaderPresent:!!headers.authorization},
+        direct:{protocol:new URL(origin).protocol,hostMatchesLocalOrigin:true,path:new URL(origin+route).pathname,method:'GET',explicitHeaderNames:[],cookiePresent:false,authorizationHeaderPresent:false},
+        runtimeConfiguration:'SAME_RUNNING_WORKER',browserIdentity:'ISOLATED_AUTH_CONTEXT_NOT_SENT_AS_BEARER_ON_HTML_NAVIGATION'};
       const stackClasses=['ProxyWorker','Miniflare','undici','workerd','AdminReportsPanel','renderToReadableStream','supabase','wrangler'].filter(k=>text.includes(k));
       let directStatus=null;
       if(finalScope&&route==='/admin/reports/') {
@@ -154,7 +163,9 @@ export async function runCases({s,root,environment,command,sql}) {
           const direct=await worker.fetch(origin+route,{signal:AbortSignal.timeout(5000)});directStatus=direct.status;await direct.text();
         } catch { /* Keep the original navigation failure, not the diagnostic probe failure. */ }
       }
-      e.safeEvidence={httpStatus:r.status(),stackClasses,directWorkerStatus:directStatus,...(diagnostic?{diagnostic:sanitizeSupabaseStartDiagnosticText(diagnostic)}:{})};throw e;
+      e.safeEvidence={httpStatus:r.status(),stackClasses,...(process.env.OGH_E2E_REPORTS_STACK?{exceptionFrames,responseBytes:Buffer.byteLength(text),
+        errorResponseIsHtml:/<html[\s>]/i.test(text),redirectPaths,requestComparison}:{}),directWorkerStatus:directStatus,
+        ...(diagnostic?{diagnostic:sanitizeSupabaseStartDiagnosticText(diagnostic)}:{})};throw e;
     }return r; }
     async function assertResponse(r,label) {
       if(r.ok())return;
