@@ -67,6 +67,22 @@ export async function runMigrationReconciliation(h) {
     await sql(s,migration);assert.deepEqual(await snapshot(),before);
     return {createAndGrantInterruptedAtomically:true,originalObjectRestored:true,repeatSqlVerifiedNoOp:true};
   },'migration');
+  await check('COMMENT_BOUNDARY_SOURCE_DRIFT_REJECTED',async()=>{
+    const body=migration.split('$baseline_body$')[1];
+    const altered=body.replace(/(-- releases the transaction lock[^\n]*)\n\s*(INSERT INTO[^\n]*)\n\s*(VALUES[^\n]*);/,'$1 $2 $3;');
+    assert.notEqual(altered,body);
+    assert.equal(altered.replace(/\s+/g,' ').trim(),body.replace(/\s+/g,' ').trim());
+    const install=code=>`create or replace function ${identity.replace('(uuid,text,text,bigint)',
+      '(p_user_id uuid,p_ip_hash text,p_purpose text,p_bytes bigint)')}
+      returns table(allowed boolean,decision text) language plpgsql security definer volatile parallel unsafe
+      set search_path=pg_catalog,public,pg_temp set lock_timeout='1s' set statement_timeout='3s' as ${q(code)};`;
+    const original=await snapshot();
+    await sql(s,install(altered));const drifted=await snapshot();
+    try {await expectFailure(migration,'RATE_LIMIT_BASELINE_DRIFT');assert.deepEqual(await snapshot(),drifted);}
+    finally {await sql(s,install(body));}
+    assert.deepEqual(await snapshot(),original);
+    return {lineCommentSwallowsReservationDetected:true,whitespaceFingerprintWouldHaveMissed:true,noDriftedRpcInvoked:true,noOverwrite:true};
+  },'migration');
   await check('RATE_LIMIT_RPC_RESTRICTED_TO_SERVICE_BOUNDARY',async()=>{
     for(const actor of ['anon','A','B']) {
       const r=await localFetch('/rest/v1/rpc/consume_forum_rate_limit',{method:'POST',headers:{apikey:s.status.ANON_KEY,
@@ -106,7 +122,7 @@ export async function runMigrationReconciliation(h) {
         if(purpose==='post_create'||purpose==='comment_create') {
           const route=purpose==='post_create'?'/api/forum/posts':'/api/forum/comments';
           const payload=purpose==='post_create'?{circle_slug:circleSlug,title:'Denied quota fixture',body:'This must not be persisted.',type:'question'}:{post_id:postId,body:'Denied quota fixture'};
-          const r=await browserApi(pages.B,route,'POST',payload);assert.equal(r.status,429);assert.equal(r.data.error,'RATE_LIMITED');
+          const r=await browserApi(pages.B,route,'POST',payload);assert.equal(r.status,429);assert.equal(r.data.code,'RATE_LIMITED');
         }
         return {originalLimit:max,allowedReservationThenDenied:true,deniedDoesNotInsert:true,serviceRoleOnlyForDesignedRpcBoundary:true};
       }finally{await sql(s,`delete from public.forum_upload_attempts where ${where};`);}
@@ -120,7 +136,7 @@ export async function runMigrationReconciliation(h) {
         ...(body?{body:JSON.stringify(body)}:{})});return {status:r.status,data:await r.json()};
     };
     assert.equal((await rest('A','POST','select=id',{comment_id:id,user_id:s.actors.A.id,reaction_type:'like'})).status,201);
-    const deleted=await rest('B','DELETE','comment_id=eq.'+id+'&user_id=eq.'+s.actors.A.id);
+    const deleted=await rest('B','DELETE','select=id,comment_id,user_id,reaction_type&comment_id=eq.'+id+'&user_id=eq.'+s.actors.A.id);
     assert.equal(deleted.status,200);assert.deepEqual(deleted.data,[]);
     const forged=await rest('B','POST','select=id',{comment_id:id,user_id:s.actors.A.id,reaction_type:'like'});
     assert.equal(forged.status,403);assert.equal(forged.data.code,'42501');
@@ -139,8 +155,8 @@ export async function runMigrationReconciliation(h) {
     await sql(s,`with targets as (insert into public.posts(author_id,circle_id,type,title,body,status)
       select ${q(s.actors.A.id)},${q(h.circleId)},'question','Local quota target '||i,'Local fixture','published'
       from generate_series(1,11) i returning id)
-      insert into public.reports(reporter_id,target_type,target_id,reason_code,reason_text,status)
-      select ${q(s.actors.B.id)},'post',id,'other','Local quota fixture','open' from targets;`);
+      insert into public.reports(reporter_id,target_type,target_id,reason,reason_code,reason_text,status)
+      select ${q(s.actors.B.id)},'post',id,'Local quota fixture','other','Local quota fixture','open' from targets;`);
     const r=await browserApi(p,'/api/forum/reports','POST',{post_id:postId,reason:'Local quota denial'});
     assert.equal(r.status,429);assert.equal(r.data.error,'RATE_LIMITED');
     assert.equal(await dbCount('reports',`reporter_id=${q(s.actors.B.id)}`),12);
@@ -158,5 +174,11 @@ export async function runMigrationReconciliation(h) {
     'NESTED_DELETED_ANCESTORS_REMAIN_NESTED','DELETED_BODY_DIRECT_RLS_STILL_DENIED',
     'PROJECTION_PRIVATE_AND_MALICIOUS_INPUTS_DENIED','ADMIN_DELETE_ROLE_AND_UI',
     'REGULAR_USER_CANNOT_FORGE_ADMIN_DELETE','REACTIONS_AND_COMMENT_READ_REGRESSION','UI_REPLY_AFTER_PARENT_DELETE']);
-  await runCommentRegression({...h,check:(id,fn,family)=>affected.has(id)?check(id,fn,family):undefined});
+  await runCommentRegression({...h,check:(id,fn,family)=>affected.has(id)?check(id,async()=>{
+    try{return await fn();}catch(e){
+      const frame=e.stack?.split(/\r?\n/).find(line=>line.includes('local-comment-delete-regression.mjs:'));
+      if(frame)e.safeEvidence={...e.safeEvidence,localAssertion:frame.match(/local-comment-delete-regression\.mjs:\d+:\d+/)?.[0]};
+      throw e;
+    }
+  },family):undefined});
 }

@@ -175,8 +175,8 @@ BEGIN
     OR pg_catalog.pg_get_function_result(target.oid)<>'TABLE(allowed boolean, decision text)'
     OR (SELECT array_agg(x ORDER BY x) FROM unnest(target.proconfig) x) IS DISTINCT FROM
       ARRAY['lock_timeout=1s','search_path=pg_catalog, public, pg_temp','statement_timeout=3s']
-    OR btrim(regexp_replace(target.prosrc,'[[:space:]]+',' ','g')) <>
-      btrim(regexp_replace(expected_body,'[[:space:]]+',' ','g'))
+    OR replace(target.prosrc,chr(13)||chr(10),chr(10)) <>
+      replace(expected_body,chr(13)||chr(10),chr(10))
   THEN RAISE EXCEPTION 'RATE_LIMIT_BASELINE_DRIFT: implementation or security'; END IF;
   IF NOT pg_catalog.has_function_privilege('service_role',target.oid,'EXECUTE')
     OR pg_catalog.has_function_privilege('anon',target.oid,'EXECUTE')

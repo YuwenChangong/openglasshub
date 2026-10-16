@@ -14,6 +14,8 @@ test('formal migration owns the unchanged rate-limit implementation without repl
   const body = proposal.split('$function$')[1].replace(/\s+/g, ' ').trim();
   assert.equal(sql.split('$baseline_body$')[1].replace(/\s+/g, ' ').trim(), body);
   assert.doesNotMatch(sql, /CREATE\s+OR\s+REPLACE/i);
+  assert.doesNotMatch(sql, /regexp_replace\(target\.prosrc/);
+  assert.ok(sql.includes('replace(target.prosrc,chr(13)||chr(10),chr(10))'));
   for (const token of ['RATE_LIMIT_BASELINE_DRIFT', 'prosecdef', 'proleakproof', 'proparallel', 'aclexplode', 'proconfig']) {
     assert.ok(sql.includes(token), 'MISSING_DRIFT_CHECK:' + token);
   }
