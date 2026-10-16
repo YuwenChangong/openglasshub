@@ -11,6 +11,7 @@ import {
 import remarkGazeLauncherVisibility from './src/plugins/remark-gaze-launcher-visibility.ts';
 import { resolveSiteOrigin, rewriteRobotsSitemapOrigins } from './src/lib/site-origin.ts';
 import localeSsrRoutes from './src/plugins/locale-ssr-routes.mjs';
+import { r2WorkerSdkRuntime } from './scripts/lib/r2-worker-sdk-runtime.mjs';
 
 const gazeLauncherPublicEnabled = isGazeLauncherPublicEnabled();
 const siteOrigin = resolveSiteOrigin(process.env.SITE_ORIGIN);
@@ -38,6 +39,7 @@ function siteOriginRobots() {
 }
 
 export default defineConfig({
+  vite: { plugins: [r2WorkerSdkRuntime()] },
   site: siteOrigin,
   output: 'static',
   markdown: {

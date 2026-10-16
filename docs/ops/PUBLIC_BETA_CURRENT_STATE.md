@@ -69,9 +69,12 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 - Previous scoped branch: `codex/isolated-r2-offline-preflight-20261016`, based on
   `ad85cda0`; value-blind local R2 configuration preflight only. No cloud access,
   credential/environment mutation, application change, live test or authorization.
-- Current scoped branch: `codex/isolated-r2-minimal-e2e-20261016`, based on
+- Previous scoped branch: `codex/isolated-r2-minimal-e2e-20261016`, based on
   `b2d4fe31`; owner-approved single isolated R2 attempt in the existing local
   runner. Stopped before any R2 dispatch; local Storage fallback is NOT R2 PASS.
+- Current scoped branch: `codex/r2-ticket-offline-fix-20261016`, based on
+  `83a70395`; bounded offline signing diagnosis, exact S3 build-resolution fix
+  and local/Mock regression only. No real R2 test authorization reused.
 - Recovery Version `1b327fed-be4b-4873-9fcd-6514e014916c`: verified content [R],
   PRE-HARDENING ONLY. Never use it as the default post-Hardening recovery target.
 - `CATALOG_HOLD=ACTIVE`; writers, queues and retries remain held. Current continued
@@ -114,11 +117,70 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | Reports HTTP500 exact stack | CAPTURED at Miniflare entry.worker.js:4733:22 | B-only200/forbidden UI; original minimal A-denial prefix then B still500. Local service.fetch rejects Network connection lost; catch4736 generates182-byte plain500. No downstream/root stack or safe fix proven. Two-reproduction limit reached; UI03 FAIL, other valid evidence reused |
 | Final bounded workerd investigation | UI03_LOCAL_RUNTIME_UNRESOLVED / BLOCKED; original target FAIL retained | One additional owner-approved local run:4 prerequisites PASS/1 target FAIL. Native stdout/cause/lifecycle captured. Both processes alive at500, exit only during cleanup. SETUP TLS alerts do not prove the target disconnect cause. No safe fix or application/runtime classification proven; stop further diagnosis and continue independent Beta work |
 | Isolated real R2 minimal E2E | BLOCKED before cloud dispatch; local run5 PASS/1 FAIL | Valid2028-byte synthetic H.264 MP4 generated. Composer linked local Supabase fallback, rejected by the real-R2-only assertion. R2 calls0/30, no object uploaded/deleted; temporary local state cleaned. Precise local ticket/interception failure UNKNOWN; no automatic business retry or inferred R2 failure |
+| R2 ticket offline repair | PROVEN local SDK build defect repaired; next real attempt READY_FOR_OWNER_APPROVAL only | Node S3 runtime called browser core Symbol as function. Local Workerd reproduced TypeError; consistent browser runtime resolution fixes signing. Same browser/direct Worker ticket endpoints500 ->200. Seven targeted checks PASS plus actual fixed ticket flow PASS; R2 calls0. Image source unchanged; no real upload/playback/delete PASS |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
 Receipt reuse does not authorize execution. Historical time conflicts, 20-second
 timeout FAIL, unknown upload side effects and retained consumed Claims stay unchanged.
+
+## Bounded Offline R2 Ticket Repair (2026-10-16)
+
+- Configuration loading was not absent: `.env.r2-test.local` at the checkout root
+  is parsed into five server bindings, never Astro client/build vars or a public
+  environment export. The concatenated owner-typed filename still is not the
+  actual file. Existing credentials/bucket/CORS/billing checks were not repeated.
+- One original-path local diagnosis (`e145197b5bcc`) captured ticket HTTP500 in
+  both browser-intercepted and direct Worker requests. QA's catch/abort converted
+  that HTTP response into browser Failed-to-fetch; the exact client fallback
+  predicate at CreatePostForm.tsx:570-575 matched. Real R2 attempts0.
+- Raw inner error was reproduced by invoking the actual pre-fix generated
+  signer chunk in local Workerd with synthetic credentials and denied outbound:
+  TypeError: emitWarningIfUnsupportedVersion is not a function,
+  getRuntimeConfig -> new S3Client -> createR2Client -> signR2PutUrl.
+  Installed S3 SDK3.1123.0's Node runtime called AWS core/browser's
+  Symbol.for("node-only") placeholder. This is a proved local bundle mismatch,
+  not a CORS, Token, R2 Provider or current Production defect claim.
+- Minimal build fix: only S3Client.js's relative runtimeConfig import resolves
+  to the SDK's existing runtimeConfig.browser.js in build mode. AWS core and S3
+  now use consistent Worker/browser exports. No SDK replacement, network proxy,
+  Node SDK middleware, credentials/config override, auth/RLS/Turnstile bypass or
+  Supabase image/thumbnail source change. No Production deployment/config edit.
+- QA ticket handler now preserves non200 HTTP responses instead of manufacturing
+  fetch errors, records only stage/status/allowlisted error class, and still
+  validates successful tickets before release. Invalid targets remain denied.
+  Legitimate source fallback logic unchanged. Offline flag denies every R2
+  transport even during cleanup; no old request allowance/GO is inherited.
+- Rebuilt actual signer produced valid-shaped SigV4 PUT URLs locally with no
+  network. Seven distinct focused checks passed: exact resolver scope, actual
+  Workerd signer, HTTP-error preservation, valid ticket ordering, invalid target
+  rejection, real-Chrome source upload function Mock cases, real-Chrome image/
+  thumbnail optimizer. Initial image assertion wrongly required all images to
+  become WebP; only the assertion was corrected to permit the existing smaller-
+  original optimization. Six checks reused PASS; only that one was rerun/PASS.
+  Browser PUT tests use synthetic transport bytes and local fulfilled responses,
+  not real R2 or proof of a playable video.
+- Post-fix targeted local regression (`e4467608a523`) uses the same actual API,
+  Actor A and server binding path. Browser and direct Worker both HTTP200,
+  upload_url/media_url/storage_path/expires_at present, successful exact target
+  validation before release. All five R2 values therefore function in the server
+  context; no secret appeared in reports. Four identity/context setup checks
+  also PASS, not a rerun or upgrade of the historical full Auth13 evidence.
+- Both owned local runs cleaned: containers/volumes/Storage rows/accounts/DPAPI
+  credentials and temporary certificate removed; browser/Worker disposed. No
+  expected app/API/database listeners or active pointer remain. R2 requests0,
+  Production requests/writes0, no remote object uploaded or cleanup required.
+- Historical2028-byte video was ephemeral and only its hash/length survived the
+  earlier cleanup. Do not claim its exact bytes were retained/reused. The next
+  separately approved attempt can reuse the validated synthetic generator and
+  produce one fresh <=64KiB MP4, with its real size/hash checked before upload.
+- Evidence: the two run directories' original RESULTS_SAFE/CLEANUP_SAFE files,
+  `scripts/qa/test-r2-ticket-offline.mjs`, and
+  `output/playwright/local-supabase-e2e/R2_TICKET_OFFLINE_REVIEW_SAFE.md`.
+  Real R2 upload/playback/Range/delete NOT_RUN; next real test requires NEW owner
+  approval and its own30/8 budget. Historical10/14 local Group1,16 local RLS and
+  23 business PASS unchanged; UI03 BLOCKED,Production parity UNKNOWN,Catalog
+  ACTIVE,USD0,Public Beta NOT_AUTHORIZED. No push/deploy.
 
 ## Owner-Approved Minimal R2 Attempt (2026-10-16)
 

@@ -12,7 +12,7 @@ const digest=b=>createHash('sha256').update(b).digest('hex');
 const safeError=()=>Error('ISOLATED_R2_REQUEST_STOPPED');
 
 // One owner-approved object; secrets and signed URLs never enter the safe report.
-export async function createIsolatedR2Run({root,s,report}) {
+export async function createIsolatedR2Run({root,s,report,offline=false}) {
   const e=parseEnv(await fs.readFile(path.join(root,'.env.r2-test.local'),'utf8'));
   const names=['R2_ACCOUNT_ID','R2_ACCESS_KEY_ID','R2_SECRET_ACCESS_KEY','R2_BUCKET_NAME','R2_PUBLIC_BASE_URL'];
   assert.ok(names.every(k=>e[k]?.trim()),'R2_CONFIGURATION_MISSING');
@@ -31,7 +31,7 @@ export async function createIsolatedR2Run({root,s,report}) {
     costEvidence:'REVIEWED_OCTOBER16_ACCOUNT_SNAPSHOT_NOT_REALTIME',costHardGuarantee:false,
     requestBudget:{max:30,workMax:22,cleanupReserved:8,work:0,cleanup:0,denied:0,byMethod:{}},
     browserWholeNetworkHardCap:false,attempts:[],upload:'NOT_RUN',playback:'NOT_RUN',bucketRange:'NOT_RUN',
-    applicationRange:'NOT_RUN',delete:'NOT_RUN',objectNonexistence:'NOT_RUN',cleanup:'NOT_RUN'};
+    applicationRange:'NOT_RUN',delete:'NOT_RUN',objectNonexistence:'NOT_RUN',cleanup:'NOT_RUN',offlineNoCloudDispatch:offline};
   const budget=meta.requestBudget;
   let key,putUrl,fixture,putAttempted=false,uploadComplete=false,cleanupMode=false,stopped=false;
   let deletionAction=0,deleteSeen=-1;
@@ -59,6 +59,7 @@ export async function createIsolatedR2Run({root,s,report}) {
     if(location||status>=300&&status!==404)stopped=true;
   }
   async function controlled(url,init={}) {
+    if(offline)throw safeError();
     const u=new URL(url),method=init.method??'GET';
     try {admit(u,method);}catch{budget.denied++;throw safeError();}
     try {
@@ -102,6 +103,7 @@ export async function createIsolatedR2Run({root,s,report}) {
       catch{return new Response('ISOLATED_R2_STOPPED',{status:403});}
     },
     async browserFetch(route) {
+      if(offline)return route.abort();
       const req=route.request(),method=req.method();
       try {
         if(method==='PUT')assert.equal(digest(req.postDataBuffer()??Buffer.alloc(0)),digest(fixture??Buffer.alloc(0)),'R2_SINGLE_FIXTURE_REQUIRED');
@@ -171,14 +173,7 @@ export async function runRealR2Cases(h) {
     meta.fixture={bytes:bytes.length,sha256:digest(bytes),mime:encoded.mime,synthetic:true};
     return {...meta.fixture,realR2:false};
   });
-  const ticketRoute=async route=>{
-    try {
-      const response=await route.fetch({maxRetries:0,maxRedirects:0,timeout:10000});
-      assert.equal(response.status(),200,'R2_TICKET_FAILED');
-      r2.register(await response.json(),route.request().postDataJSON());
-      await route.fulfill({response});await response.dispose();
-    }catch {await route.abort();}
-  };
+  const ticketRoute=createR2TicketRoute(r2);
   await contexts.A.route(u=>u.origin===origin&&u.pathname==='/api/forum/external-video-upload',ticketRoute);
   try {
     await check('REAL_R2_VIDEO_UPLOAD',async()=>{
@@ -240,4 +235,63 @@ export async function runRealR2Cases(h) {
     await contexts.A.unroute(u=>u.origin===origin&&u.pathname==='/api/forum/external-video-upload',ticketRoute).catch(()=>{});
     await pages.A.goto('about:blank').catch(()=>{});
   }
+}
+
+export function createR2TicketRoute(r2) {
+  return async route=>{
+    const trace=r2.meta.ticket={stage:'REQUEST',requestObserved:true,httpStatus:null};
+    let response;
+    try {
+      response=await route.fetch({maxRetries:0,maxRedirects:0,timeout:10000});
+      trace.stage='HTTP';trace.httpStatus=response.status();
+      if(response.status()!==200) {
+        trace.stage='HTTP_REJECTED';
+        await route.fulfill({response});
+        return;
+      }
+      trace.stage='JSON';const data=await response.json();
+      trace.stage='VALIDATE';r2.register(data,route.request().postDataJSON());
+      trace.stage='FULFILL';await route.fulfill({response});
+      trace.stage='COMPLETE';
+    }catch(e) {
+      trace.errorClass=/self.signed|certificate/i.test(e.message??'')?'LOCAL_TLS_CERTIFICATE':
+        /Network connection lost/i.test(e.message??'')?'LOCAL_RUNTIME_DISCONNECT':
+        /^R2_[A-Z_]+$/.test(e.message??'')?e.message:'OTHER_LOCAL_TICKET_ERROR';
+      trace.errorType=e.name;
+      await route.abort();
+    }finally{await response?.dispose();}
+  };
+}
+
+export async function runOfflineTicketCase(h) {
+  const {r2,pages,contexts,origin,postId,sessions,report,worker}=h;
+  r2.setFixture(Buffer.alloc(2028));
+  const payload={post_id:postId,file_name:'r2-'+h.s.runId+'.mp4',mime_type:'video/mp4',size_bytes:2028};
+  const matches=u=>u.origin===origin&&u.pathname==='/api/forum/external-video-upload';
+  const handler=createR2TicketRoute(r2);
+  await contexts.A.route(matches,handler);
+  try {
+    const observed=await pages.A.evaluate(async payload=>{
+      const item=Object.keys(localStorage).find(k=>k.endsWith('-auth-token'));
+      const token=JSON.parse(localStorage.getItem(item)||'null')?.access_token;
+      try {
+        const r=await fetch('/api/forum/external-video-upload',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+token},body:JSON.stringify(payload)});
+        return {status:r.status,transportFailed:false};
+      }catch(e){return {status:null,transportFailed:true,clientFallbackRegexMatched:/Failed to fetch|NetworkError|Load failed/i.test(e.message)};}
+    },payload);
+    report.offlineTicketDiagnostic={browser:observed,ticket:r2.meta.ticket};
+    const direct=await worker.fetch(origin+'/api/forum/external-video-upload',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+sessions.A.access_token},body:JSON.stringify(payload)});
+    const data=await direct.json();
+    const schema={uploadUrl:typeof data.upload_url==='string',mediaUrl:typeof data.media_url==='string',storagePath:typeof data.storage_path==='string',expiresAt:typeof data.expires_at==='string'};
+    report.offlineTicketDiagnostic.directWorker={status:direct.status,schema};
+    if(direct.status===200&&!r2.meta.ownedObjectReference){r2.register(data,payload);report.offlineTicketDiagnostic.directWorker.exactTargetValidation=true;}
+    await h.check('OFFLINE_R2_TICKET_FLOW',async()=>{
+      assert.equal(observed.status,200,'BROWSER_SIGNING_TICKET_NOT_READY');
+      assert.equal(direct.status,200,'WORKER_SIGNING_TICKET_NOT_READY');
+      assert.ok(Object.values(schema).every(Boolean),'SIGNING_TICKET_SCHEMA_MISMATCH');
+      assert.equal(r2.meta.ticket.stage,'COMPLETE','TICKET_VALIDATION_NOT_COMPLETE');
+      assert.equal(r2.meta.requestBudget.work+r2.meta.requestBudget.cleanup,0);
+      return {...report.offlineTicketDiagnostic,r2Requests:0};
+    },'realR2Offline');
+  }finally{await contexts.A.unroute(matches,handler);}
 }
