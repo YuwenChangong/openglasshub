@@ -20,7 +20,7 @@ export async function runReportsRegression(h) {
       return {...evidence,listRequestDelta:metrics.listRequests-before.listRequests,listResponseDelta:metrics.listResponses-before.listResponses,
         localGuardDenied:metrics.deniedByLocalGuard};},family);};
   const ready=async()=>{await p.locator('.admin-reports-toolbar').waitFor();await p.waitForLoadState('networkidle',{timeout:8000});};
-  const idle=async(ms=1200)=>{const count=metrics.listRequests,start=performance.now();await p.waitForTimeout(ms);
+  const idle=async(ms=5000)=>{const count=metrics.listRequests,start=performance.now();await p.waitForTimeout(ms);
     assert.equal(metrics.listRequests-count,0,'IDLE_REPORTS_READ_LOOP');return {observationMs:Math.round(performance.now()-start),idleListRequests:0};};
   const statusSelect=()=>p.locator('.admin-reports-filters select').first();
   const confirmAction=async(label,confirm)=>{await p.getByRole('button',{name:label,exact:true}).click();
@@ -28,10 +28,38 @@ export async function runReportsRegression(h) {
     await p.getByRole('alertdialog').getByRole('button',{name:confirm,exact:true}).click();assert.equal((await response).status(),200);};
   try {
     await run('REPORTS_REAL_LOCAL_FIXTURE',async()=>{
-      const r=await browserApi(pages.B,'/api/forum/reports','POST',{target_type:'post',target_id:postId,reason_code:'spam',reason_text:'Disposable reports regression'});
-      assert.equal(r.status,201);reportId=r.data.report.id;assert.ok(reportId);
-      return {realReporterApi:true,isolatedDataOnly:true};
+      const b=pages.B;await goto(b,'/posts/'+postId+'/');
+      await b.getByRole('button',{name:/^Report$|^举报$/}).first().click();
+      const dialog=b.getByRole('dialog');await dialog.locator('.glass-choice').first().click();
+      await dialog.locator('textarea').fill('Disposable reports regression');
+      const response=responseFor(b,r=>new URL(r.url()).pathname==='/api/forum/reports'&&r.request().method()==='POST');
+      await dialog.getByRole('button',{name:/Submit report|提交举报/}).click();
+      const r=await response;assert.equal(r.status(),201);reportId=(await r.json()).report.id;assert.ok(reportId);
+      await dialog.waitFor({state:'hidden'});
+      assert.equal(+await scalar(`select count(*) from public.reports where id=${q(reportId)} and reporter_id=${q(s.actors.B.id)};`),1);
+      return {realReporterUi:true,realReporterApi:true,isolatedDataOnly:true,dbReporterVerified:true};
     });
+    await run('REPORTS_REPORTER_ROW_ISOLATION',async()=>{
+      assert.ok(reportId,'REPORT_FIXTURE_REQUIRED');
+      const bPost=await scalar(`insert into public.posts(author_id,circle_id,type,title,body,status) values(${q(s.actors.B.id)},${q(h.circleId)},'question','Local reporter isolation','Disposable report target','published') returning id;`);
+      const a=await browserApi(pages.A,'/api/forum/reports','POST',{target_type:'post',target_id:bPost,reason_code:'spam',reason_text:'Disposable private report'});
+      assert.equal(a.status,201);const aId=a.data.report.id;
+      try {
+      for(const actor of ['A','B','ADMIN']) {
+        const ownId=actor==='A'?aId:reportId,otherId=actor==='A'?reportId:aId;
+        const own=await h.readTable(actor,'reports','select=id&id=eq.'+ownId);
+        const other=await h.readTable(actor,'reports','select=id&id=eq.'+otherId);
+        assert.equal(own.status,200);assert.deepEqual(own.data.map(r=>r.id),[ownId]);
+        assert.equal(other.status,200);assert.deepEqual(other.data.map(r=>r.id),actor==='ADMIN'?[otherId]:[]);
+      }
+      const anon=await h.localFetch('/rest/v1/reports?select=id&id=eq.'+reportId,{headers:{apikey:s.status.ANON_KEY}}),body=await anon.json();
+      assert.ok(anon.status===200?Array.isArray(body)&&body.length===0:[401,403].includes(anon.status)&&body.code==='42501');
+      return {ordinaryJwtAndAnonKeyOnly:true,ownRows:1,crossReporterRows:0,adminBothRows:true,anonPrivateRows:0,
+        ownReportPage:'NOT_IMPLEMENTED_NO_NEW_PRODUCT_SCOPE',databaseRlsEnforced:true};
+      } finally {
+        await sql(s,`delete from public.report_events where report_id=${q(aId)};delete from public.reports where id=${q(aId)};delete from public.posts where id=${q(bPost)};`);
+      }
+    },'permissions');
     await run('REPORTS_INITIAL_LOAD_AND_IDLE',async()=>{
       assert.equal((await goto(p,'/admin/reports/')).status(),200);
       await p.locator('.admin-report-card').filter({hasText:'Local E2E seeded discussion'}).waitFor();

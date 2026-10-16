@@ -25,6 +25,8 @@ export async function runCases({s,root,environment,command,sql}) {
   const previousId=process.env.OGH_E2E_REUSE_RUN;
   const previous=previousId&&/^[a-f0-9]{12}$/.test(previousId)?JSON.parse(await fs.readFile(path.join(root,'output/playwright/local-supabase-e2e',previousId,'RESULTS_SAFE.json'),'utf8')):null;
   const only=process.env.OGH_E2E_ONLY?.split(',');
+  const runtimeFaults={crossRequestIo:0,hangingPromise:0,networkConnectionLost:0,proxyNetworkConnectionLost:0,fatalRuntime:0};
+  if(finalScope)report.runtimeFaultCategories=runtimeFaults;
   let worker,browser;
   const clients={},sessions={},pages={},contexts={};
   const localFaults={failThumbnailDelete:false};
@@ -111,7 +113,13 @@ export async function runCases({s,root,environment,command,sql}) {
     console.log('LOCAL_APPLICATION_BUILD=PASS');
     worker=await unstable_startWorker({config:path.join(root,'dist/server/wrangler.json'),envFiles:[],build:{bundle:false},
       bindings:Object.fromEntries(Object.entries({...vars,SUPABASE_SERVICE_ROLE_KEY:s.status.SERVICE_ROLE_KEY,RATE_LIMIT_SALT:randomBytes(32).toString('hex')}).map(([name,value])=>[name,{type:'plain_text',value}])),
-      dev:{remote:false,watch:false,liveReload:false,persist:false,inspector:false,logLevel:'none',server:{hostname:'127.0.0.1',port:4328,secure:true,httpsKeyPath:key,httpsCertPath:cert},
+      dev:{remote:false,watch:false,liveReload:false,persist:false,inspector:false,logLevel:'none',
+        ...(finalScope?{structuredLogsHandler(log){const value=JSON.stringify(log);
+          if(/Cannot perform I\/O|I\/O.*different request/i.test(value))runtimeFaults.crossRequestIo++;
+          if(/never generate a response|hanging Promise/i.test(value))runtimeFaults.hangingPromise++;
+          if(/Network connection lost/i.test(value))runtimeFaults.networkConnectionLost++;
+          if(/fatal|access violation/i.test(value))runtimeFaults.fatalRuntime++;
+        }}:{}),server:{hostname:'127.0.0.1',port:4328,secure:true,httpsKeyPath:key,httpsCertPath:cert},
         async outboundService(request) {
           const url=new URL(request.url);
           if(url.origin!==new URL(s.status.API_URL).origin){report.externalRequestsBlocked++;return new Response('LOCAL_OUTBOUND_DENIED',{status:599});}
@@ -123,6 +131,9 @@ export async function runCases({s,root,environment,command,sql}) {
           }
           return fetch(url,await buildOutboundFetchInit(request));
         }}});
+    if(finalScope)worker.raw.on('error',event=>{
+      if(event.source==='ProxyController'&&/Network connection lost/i.test(event.cause?.message??''))runtimeFaults.proxyNetworkConnectionLost++;
+    });
     await worker.ready; await worker.url;
     browser=await chromium.launch({channel:'chrome',headless:true,args:['--disable-background-networking']});
     async function newContext(width=1440) {
@@ -136,7 +147,14 @@ export async function runCases({s,root,environment,command,sql}) {
     async function goto(p,route) { const r=await p.goto(origin+route,{waitUntil:'domcontentloaded',timeout:20000});if(r?.status()>=500){
       const text=await r.text(),e=Error('APPLICATION_HTTP_'+r.status());
       const diagnostic=text.match(/(?:TypeError|ReferenceError|Error):[^\n<]{1,160}/)?.[0];
-      e.safeEvidence={httpStatus:r.status(),...(diagnostic?{diagnostic:sanitizeSupabaseStartDiagnosticText(diagnostic)}:{})};throw e;
+      const stackClasses=['ProxyWorker','Miniflare','undici','workerd','AdminReportsPanel','renderToReadableStream','supabase','wrangler'].filter(k=>text.includes(k));
+      let directStatus=null;
+      if(finalScope&&route==='/admin/reports/') {
+        try {
+          const direct=await worker.fetch(origin+route,{signal:AbortSignal.timeout(5000)});directStatus=direct.status;await direct.text();
+        } catch { /* Keep the original navigation failure, not the diagnostic probe failure. */ }
+      }
+      e.safeEvidence={httpStatus:r.status(),stackClasses,directWorkerStatus:directStatus,...(diagnostic?{diagnostic:sanitizeSupabaseStartDiagnosticText(diagnostic)}:{})};throw e;
     }return r; }
     async function assertResponse(r,label) {
       if(r.ok())return;
