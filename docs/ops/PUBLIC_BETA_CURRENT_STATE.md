@@ -1,9 +1,9 @@
 # Public Beta Current State
 
-Authoritative release/progress baseline. Updated 2026-10-16 by the independently
-owner-approved Production Read-Only Release Audit v1: two READ ONLY metadata SQL
-requests and three Cloudflare metadata GETs. No application tests were replayed,
-no business rows read, and no Production writes or deployments performed.
+Authoritative release/progress baseline. Updated 2026-10-16 by offline migration
+reconciliation, fresh disposable Supabase replay and focused Playwright regression.
+This task Production requests/writes/deployments0. Earlier separately approved
+read-only audit remains historical evidence, not permission for another live read.
 Read this first for every task. This document is not an authorization or GO.
 `VERIFIED` is scoped historical evidence, not proof of unchanged live state now.
 Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
@@ -19,6 +19,9 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
   Current version summary has no source-Commit annotation. Released source/build
   mapping above is reused historical evidence, not a newly returned Git SHA.
 - Audited local release candidate: `4299aa3afa45dc8c30ebbe2e63a17fcd6bbb0524`.
+  Latest tested formal-migration candidate: `9bef6e8a`; same seven product fixes,
+  new non-overwriting quota adoption migration. Local build PASS/type gate FAIL;
+  no merge/deploy and no new Production source-Commit verification.
   First post-release product fix: `9161ca71e6fcceef984c8129f156667d536c7a44`,
   whose parent is the released source. Later product fixes are included below;
   local commits are not proof of deployment or current Production parity.
@@ -90,9 +93,12 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 - Previous scoped branch: `codex/public-beta-readiness-consolidation-20261016`,
   based on `4299aa3a`; offline Git/source/migration review and this baseline only.
   No merge, remote refresh, build replay, test execution or deployment.
-- Current scoped branch: `codex/production-readonly-release-audit-v1-20261016`,
+- Previous scoped branch: `codex/production-readonly-release-audit-v1-20261016`,
   based on `f1b36c85`; bounded owner-approved metadata reads and local audit records.
   No merge, push, migration execution, application RPC call or new test framework.
+- Current scoped branch: `codex/release-candidate-migration-reconciliation-20261016`,
+  based on `bf4df65f`; owner-approved local formal migration/QA integration only.
+  Production write/deployment/merge permissions remain absent.
 - Recovery Version `1b327fed-be4b-4873-9fcd-6514e014916c`: verified content [R],
   PRE-HARDENING ONLY. Never use it as the default post-Hardening recovery target.
 - `CATALOG_HOLD=ACTIVE`; writers, queues and retries remain held. Current continued
@@ -140,6 +146,7 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | Real R2 video E2E retry v2 | PASS for approved isolated one-object scope;12/12 current checkpoints PASS | Run a16768d45aed:2028-byte H.264 MP4,PUT200,size HEAD200,Chrome decode/playback,bucket Range206,application DELETE204,HEAD404 twice,local rows0.11/30 controlled requests(work8/22,cleanup3/8). Site proxy Range still FULL200/not forwarded;not a proxy206 or Production parity PASS. Cleanup independently verified |
 | Current release consolidation | BLOCKED for release approval, not a new proven application failure | All seven product-fix commits included in candidate4299aa3a; two new canonical migrations and local-only rate-limit fixture require Production parity review. Group1 remains10/14,UI02 partial,UI03 BLOCKED. No merge/deploy/test replay |
 | Production Read-Only Release Audit v1 | Database ledger VERIFIED; two migrations MISSING; rate-limit RPC COMPATIBLE for checked static contract | Five reads: DB2 READ ONLY + CF3 GET,all successful,no retry. Current Worker152/b2b62ec9 at100%; required Secret names present. Plain-variable targets/modes and post-Hardening recovery not freshly verified. No function invocation or state change |
+| Formal migration reconciliation |56 formal migrations replayed;26/26 focused local checks and3/3 static tests PASS | No extra quota-proposal installation. Existing-object normal migration adoption preserves OID/source/ACL/owner; security/ACL/overload/comment-boundary drift fails; interrupted create/grant rolls back. Astro local build PASS, existing type ratchet FAIL; merge BLOCKED |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -147,6 +154,97 @@ Receipt reuse does not authorize execution. Historical time conflicts, 20-second
 timeout FAIL, unknown upload side effects and retained consumed Claims stay unchanged.
 Rows above preserve chronological scoped outcomes; earlier R2 BLOCKED rows are
 historical, not a reversal of the latest isolated R2 PASS.
+
+## Release Candidate Formal Migration Reconciliation (2026-10-16)
+
+- Owner approved offline implementation/review and local testing only. Independent
+  branch based on bf4df65f; code/migration commits93fa851b,99529b6e,9bef6e8a. Product
+  src/config/package files unchanged in this task; all seven prior product-fix
+  commits remain ancestors. No main merge, push, cloud query, R2 access or deploy.
+- Existing reaction72723 and deleted-placeholder74931 migrations reviewed and
+  left byte-identical in Git. Minimal column grants preserve RLS/ownership and
+  exclude UPDATE/service-role table access. Public-only sanitized ancestor RPC
+  preserves body/author privacy, bounded seeds/recursion and exact EXECUTE scope.
+  Review, hashes, rollout order and recovery rules are recorded in
+  docs/ops/reconciliation/release-candidate-migration-reconciliation.md.
+- New canonical migration20261016061618_adopt_existing_forum_rate_limit_baseline.sql
+  was created via the installed CLI. Empty database creates the unchanged reviewed
+  five-purpose RPC. Existing object gets only catalog assertions: exact signature,
+  return columns, owner, source (CRLF/LF difference only), security/language/
+  volatility/parallel/configuration and ACL; mismatches abort, never overwrite.
+  CREATE/owner/grants are confined to the missing-object branch. No table/RLS,
+  quota threshold, business behavior or Production migration-history change.
+- Independent source review found all-whitespace source normalization unsafe:
+  deleting a line-comment boundary could hide the accepted-reservation INSERT.
+  Fixed before final verification. New real local counterexample is rejected and
+  never called. Earlier Production whitespace-normalized MD5 matching is weaker
+  evidence, not proof that this exact-source/full-attribute guard will pass live.
+  Final Production rollout still needs independently approved full preconditions;
+  unexpected missing/drifted RPC must stop, not enter a presumed repair branch.
+- Local runner no longer reads/executes the unapproved proposal after replay.
+  It requires the formal RPC to exist. Comment-delete regression also fails if
+  its formal placeholder RPC is missing instead of silently applying SQL.
+  Original historical50-file local ordering mirror plus six tracked later
+  migrations =56 formal migrations. No rewritten historical source or remote
+  ledger repair; the mirror is local-only, not a blanket db-push recipe.
+  This mode also skips the old Catalog import/activation/hardening DDL fixture;
+  only formal migrations establish schema, with minimal local data/identity seeds.
+- Initial new static regression0/3 RED then3/3 PASS. First owned run c4cb83b122da
+  preserved19 PASS/6 FAIL. Test-contract fixes: human error vs code field for two
+  quota assertions; DELETE representation explicitly selects allowed columns;
+  reports seed includes required reason; dependent admin queue count now valid.
+  A nested DOM assertion failed once then passed without product changes; cause
+  remains an unresolved transient, not a migration/root-cause claim.
+- Final formal-only fresh run6aabb1dcc51426/26 PASS:4 actual browser identity/context setup
+  checks plus22 focused migration/comment/permission/quota checks. Normal local
+  migration tooling adopted an existing function, recorded its pending version,
+  preserved OID/source/ACL/owner and skipped replay. Security-mode, ACL, overload
+  and changed-body drift failed without overwrite. Injected interruption after
+  create/grants rolled back; direct repeated adoption is a verified no-op.
+  Intermediate58b67b55ee1c was also26/26 but included the old Catalog DDL fixture;
+  its proof is preserved separately, not substituted for the final formal-only run.
+- Actual UI post creation, normal/soft-deleted three-level comment trees, safe
+  anonymous ancestry projection, private/hidden/cross-post denial, reaction
+  self/other authorization, admin deletion and ordinary-user denial all PASS.
+  Post10/hour,comment60/hour,circle5/day and separate reports12/hour remain
+  enforced locally; allowed reservation then refusal does not insert extra rows.
+  Service-role use is only the designed quota boundary, not a substitute for RLS.
+- Prior16/16 Catalog RLS, business23 and anonymous43 retained, not rerun. No real
+  R2 test, Production CAPTCHA, UI03 reproduction, media-proxy change or old
+  Native Chrome executor. GROUP1_LOCAL_CASES=10/14; UI02 partial; UI03 BLOCKED;
+  isolated R2 PASS reused; proxy full200/bucket206 distinction retained;
+  Production parity/source-Commit remain UNKNOWN.
+- Candidate Astro local-config build PASS in all three runs. TypeScript/Astro ratchet
+  FAIL against its frozen e2f45dac baseline. A16MiB Git-diff capture overflow was
+  corrected to64MiB without weakening comparisons, then the real diagnostic
+  failure was observed. Examples: AdminReportsPanel509/510 union properties,
+  AdminCirclesDashboard207 duplicate status, CommentForm101/147/150 and
+  search/index.astro7/33 environment types plus products implicit-any diagnostics.
+  These product files/toolchain were not changed by this task. No silent baseline
+  refresh, swallowed failure or broad type cleanup. Merge readiness stays BLOCKED.
+- All runs cleaned: owned container/volume suffixes absent, local accounts/data
+  destroyed, all three DPAPI directories and active pointer absent, no4328/56321/56322
+  listeners. Browser/Worker close completed. Nonsecret reusable config/mirror and
+  historical stopped/shared Docker resources preserved. Existing protected R2
+  configuration untouched. Scoped receipts remain in each output run directory.
+- Database-before-code order: review/apply only missing reaction72723, then
+  placeholder74931, then separately approved quota-baseline61618 adoption, using
+  normal migration ledger machinery. Stop on any failure; inspect actual committed
+  versions, never fabricate ledger success. Code release requires approved
+  source/build/migration hash binding and a post-Hardening compatible recovery
+  target. Do not drop a pre-existing RPC or default to pre-Hardening Version151.
+- MIGRATION_REVIEW=PASS_OFFLINE; REACTION_MIGRATION=READY;
+  COMMENT_DELETE_RPC_MIGRATION=READY; RATE_LIMIT_RPC_BASELINE=READY_OFFLINE;
+  PRODUCTION_RPC_OVERWRITE_REQUIRED=NO; CLEAN_DATABASE_REBUILD=PASS;
+  TARGETED_TESTS=26/26_LOCAL_PLUS3/3_STATIC; CANDIDATE_FIXES=7/7;
+  CANDIDATE_BUILD=PASS_LOCAL; TYPECHECK_RATCHET=FAIL;
+  MERGE_READINESS=BLOCKED; PRODUCTION_MIGRATION_EXECUTION=NOT_AUTHORIZED.
+- NEXT_SINGLE_ACTION: owner approve narrowly scoped resolution of the candidate
+  TypeScript/Astro gate differences; retain the completed migration work and do
+  not reopen old QA. Migration review materials are ready, not live execution GO.
+  PRODUCTION_REQUESTS=0; PRODUCTION_WRITES=0; DEPLOYMENTS=0;
+  MAX_ADDITIONAL_COST_USD=0; CATALOG_HOLD=ACTIVE;
+  GROUP_2/3=NOT_AUTHORIZED; PUBLIC_BETA_GO=NOT_AUTHORIZED.
 
 ## Production Read-Only Release Audit v1 (2026-10-16)
 
