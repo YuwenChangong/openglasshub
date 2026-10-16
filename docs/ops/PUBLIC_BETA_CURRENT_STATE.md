@@ -1,7 +1,7 @@
 # Public Beta Current State
 
-Authoritative release/progress baseline. Updated 2026-10-16 by offline candidate
-type-gate repair, historical source comparison and focused local regression.
+Authoritative release/progress baseline. Updated 2026-10-16 by owner-approved
+controlled local main fast-forward and post-merge build/type-gate verification.
 This task Production requests/writes/deployments0. Earlier separately approved
 read-only audit remains historical evidence, not permission for another live read.
 Read this first for every task. This document is not an authorization or GO.
@@ -23,7 +23,8 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
   new non-overwriting quota adoption migration. Its type-gate failure is now
   resolved on the typecheck-fix branch below: local build/ratchet PASS,56 retained
   historical diagnostics,not zero-error compiler PASS;
-  no merge/deploy and no new Production source-Commit verification.
+  Now included in the controlled local main merge below; no deployment or new
+  Production source-Commit verification.
   First post-release product fix: `9161ca71e6fcceef984c8129f156667d536c7a44`,
   whose parent is the released source. Later product fixes are included below;
   local commits are not proof of deployment or current Production parity.
@@ -101,9 +102,17 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 - Previous scoped branch: `codex/release-candidate-migration-reconciliation-20261016`,
   based on `bf4df65f`; owner-approved local formal migration/QA integration only.
   Production write/deployment/merge permissions remain absent.
-- Current scoped branch: `codex/release-candidate-typecheck-fix-20261016`, based on
+- Previous scoped branch: `codex/release-candidate-typecheck-fix-20261016`, based on
   `3323cb85`; minimal owner-approved type corrections and directly affected local
   checks only. READY_FOR_OWNER_MERGE_APPROVAL,not merged/deployed or Beta GO.
+- Current integration checkout: `C:/Temp/openglass-product-detail-main-release-v1`,
+  branch `main`. Owner-approved fast-forward moved exact main HEAD from
+  `f2c7cc0bde73380269f62c35eec4d542c93a5dca` to candidate
+  `1de74e199244a19a3a3aa425f51005340c2f1658` (tree
+  `89fd9da7592210e1e7a9ae337c409e43d31379ea`). This entry is committed afterward
+  as a documentation-only main commit; its Git commit is the final local main tip.
+  The validated application/migration source remains exactly the candidate above.
+  Candidate branch/worktree and historical evidence remain preserved,not rewritten.
 - Recovery Version `1b327fed-be4b-4873-9fcd-6514e014916c`: verified content [R],
   PRE-HARDENING ONLY. Never use it as the default post-Hardening recovery target.
 - `CATALOG_HOLD=ACTIVE`; writers, queues and retries remain held. Current continued
@@ -153,6 +162,7 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | Production Read-Only Release Audit v1 | Database ledger VERIFIED; two migrations MISSING; rate-limit RPC COMPATIBLE for checked static contract | Five reads: DB2 READ ONLY + CF3 GET,all successful,no retry. Current Worker152/b2b62ec9 at100%; required Secret names present. Plain-variable targets/modes and post-Hardening recovery not freshly verified. No function invocation or state change |
 | Formal migration reconciliation |56 formal migrations replayed;26/26 focused local checks and3/3 static tests PASS | No extra quota-proposal installation. Existing-object normal migration adoption preserves OID/source/ACL/owner; security/ACL/overload/comment-boundary drift fails; interrupted create/grant rolls back. Astro local build PASS, existing type ratchet FAIL; merge BLOCKED |
 | Candidate type gate repair | Original ratchet PASS;244 errors reduced to56 frozen historical errors;11/11 focused scripts PASS; local build PASS | No gate/baseline/dependency/strictness changes; all56 migration blobs and7 product fixes preserved. READY_FOR_OWNER_MERGE_APPROVAL only; Production/UI03 obligations unchanged |
+| Controlled local main merge | PASS,FAST_FORWARD to exact1de74e19 candidate; post-merge ratchet/build PASS | Main had no exclusive commits and a clean worktree. Seven fix ancestors/56 migrations preserved. Documentation-only closure commit follows; no push,Production migration,deployment or Beta GO |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -161,7 +171,57 @@ timeout FAIL, unknown upload side effects and retained consumed Claims stay unch
 Rows above preserve chronological scoped outcomes; earlier R2 BLOCKED rows are
 historical, not a reversal of the latest isolated R2 PASS.
 
-## Release Candidate Typecheck Gate Closure (2026-10-16)
+## Controlled Local Main Merge Closure (2026-10-16)
+
+- Owner authorized one local merge plus necessary local build/Git/documentation
+  verification only. Main was already checked out in the integration checkout
+  above; no other branch was reset,force-updated,detached or overwritten.
+- MAIN_HEAD_BEFORE=`f2c7cc0bde73380269f62c35eec4d542c93a5dca`.
+  Main-exclusive commits0,candidate-only commits119. Main worktree was clean;
+  candidate had no untracked product/migration sources,only retained historical
+  evidence/output. No active Git hooks or custom hook path were present.
+- Exactly one `git merge --ff-only --no-edit` accepted candidate
+  `1de74e199244a19a3a3aa425f51005340c2f1658`. MAIN_HEAD_AFTER_FAST_FORWARD is
+  that exact SHA; no merge commit,cherry-pick,conflict resolution or remote request.
+  The final main HEAD is the following documentation-only commit containing this
+  closure,whose parent is the exact fast-forward SHA above. No product changes
+  occur in that closure commit.
+- Candidate ancestry and all7 product-fix ancestors PASS. All56 migration files
+  match candidate Git blobs in the main worktree. The3 reviewed migration SHA256s
+  and intended order match the reconciliation report: reaction72723,deleted-
+  comment placeholder74931,then independently approved non-overwriting quota
+  adoption61618. No SQL executed; first2 Production migrations remain MISSING
+  according to the preserved read-only audit. Production quota adoption also
+  still requires its separate live review/authorization,not blind replacement.
+- Bounded credential-path/private-key/token-pattern inspection covered983 changed
+  paths,with no hits; no `.env`,test credential or raw private evidence was staged.
+  This is scoped offline inspection,not a claim that pattern matching can prove
+  arbitrary historical data nonsensitive. All consumed authorizations/Claims stay
+  consumed and are never executed by this merge.
+- Post-merge original ratchet PASS in the actual main checkout: frozen177,
+  current56,new0,changed-source-anchor0,unparsed-path0. Raw Astro check retains
+  historical exit1; no zero-error claim. Gate,manifest,dependencies and strict
+  settings match the approved candidate. Ratchet unit assertions19/19 PASS.
+- Post-merge Astro `build-workers.mjs --local-config` PASS using the existing
+  loopback-only noncredential fixture. Main uses an ignored dependency junction
+  to the already installed reviewed toolchain; no download or paid service.
+  Generated build/cache files and `.tmp-local-main-build.log` are ignored,not
+  committed. No database,Auth,R2,browser-business or old Native QA tests rerun.
+- Historical source snapshot cleanup remains policy-blocked; it was not deleted
+  or force-cleaned. It is outside both worktrees,contains no test credentials,
+  and does not affect tracked files or the merge. Existing private configs were
+  not opened/copied. Other worktrees and untracked historical evidence preserved.
+- GROUP1_LOCAL_CASES=10/14;GROUP1_REMAINING=4;UI02=LOCAL_PARTIAL_PASS;
+  UI03=BLOCKED;RLS=16/16_LOCAL_REUSED;R2=PASS_ISOLATED;
+  PRODUCTION_PARITY=UNKNOWN. Local main merge is not Production acceptance.
+- NEXT_SINGLE_ACTION: review and separately authorize the Production migration
+  execution plan and its prerequisites before any database/code release. No
+  push,Production migration,deployment or Catalog thaw is authorized here.
+  PRODUCTION_REQUESTS=0;PRODUCTION_WRITES=0;DEPLOYMENTS=0;
+  PUSH=NOT_EXECUTED;PRODUCTION_MIGRATIONS=NOT_EXECUTED;
+  MAX_ADDITIONAL_COST_USD=0;CATALOG_HOLD=ACTIVE;PUBLIC_BETA_GO=NOT_AUTHORIZED.
+
+## Release Candidate Typecheck Gate Closure (2026-10-16, Before Local Main Merge)
 
 - Full diagnostic inventories, attribution and verification are in
   `docs/ops/reconciliation/release-candidate-typecheck-safe.json` and the scoped
