@@ -63,9 +63,12 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 - Previous scoped branch: `codex/reports-http500-stack-20261016`, based on
   `999d8c4b`; two bounded local entry reproductions, real Miniflare dispatch
   stack captured. Downstream native disconnect cause still UNKNOWN; no product fix.
-- Current scoped branch: `codex/reports-workerd-final-20261016`, based on
+- Previous scoped branch: `codex/reports-workerd-final-20261016`, based on
   `a22b61ed`; one newly owner-authorized native-output/lifecycle reproduction.
   Root class UNKNOWN; UI03_LOCAL_RUNTIME_UNRESOLVED. Temporary probe removed.
+- Current scoped branch: `codex/isolated-r2-offline-preflight-20261016`, based on
+  `ad85cda0`; value-blind local R2 configuration preflight only. No cloud access,
+  credential/environment mutation, application change, live test or authorization.
 - Recovery Version `1b327fed-be4b-4873-9fcd-6514e014916c`: verified content [R],
   PRE-HARDENING ONLY. Never use it as the default post-Hardening recovery target.
 - `CATALOG_HOLD=ACTIVE`; writers, queues and retries remain held. Current continued
@@ -112,6 +115,46 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 
 Receipt reuse does not authorize execution. Historical time conflicts, 20-second
 timeout FAIL, unknown upload side effects and retained consumed Claims stay unchanged.
+
+## Isolated R2 Offline Configuration Preflight (2026-10-16)
+
+- Owner supplied `C:/Temp/ogh-product-beta-development-20261013.env.r2-test.local`;
+  that concatenated path does not exist. The previously prepared file at
+  `C:/Temp/ogh-product-beta-development-20261013/.env.r2-test.local` exists and was
+  inspected locally without printing values or loading them into process.env.
+  All five supported fields are nonempty; no additional fields were found.
+- The actual file is Git-ignored and untracked. ACL inheritance is disabled;
+  owner is the current user and no allowed principal outside that user/SYSTEM
+  was found. ACL protection is not encryption. No credentials were changed.
+- Bucket differs from every Production bucket reference found in repository
+  Wrangler media configuration. Public base URL is HTTPS, credential/query/fragment
+  free, root-path r2.dev, and differs from repository Production URL references.
+  These are offline comparisons, NOT current Provider inventory or proof that
+  the public URL belongs to the configured test bucket.
+- BLOCKED: no usable current proof supplied/found in known R2 evidence for
+  test-bucket-only Object Read & Write credential scope, actual saved public-URL
+  association/CORS, or account-wide current-period free allowance/remaining usage.
+  Scope cannot be inferred from key strings. A new empty bucket has no separate
+  account allowance; historical Free-plan evidence does not prove current margin.
+  Obtain redacted permission, same-bucket URL/CORS and billing/usage evidence
+  without keys, then independently review before proposing bucket-use approval.
+- Local Supabase is not running: owned active pointer absent and expected local
+  application/API/database ports not listening. Existing owned-loopback startup
+  guards remain reusable, but fresh runtime isolation must pass before cloud use.
+  No Production Supabase configuration was loaded for this preflight.
+- Existing E2E ingress/egress remains loopback-only and does not load this R2 file.
+  Real test-bucket target adaptation, actual outbound request limits and cleanup
+  reserve are not yet wired; do not report a ready bounded cloud executor.
+  Existing synthetic WebM fixture is under 64 KiB. This is not a request estimate:
+  player requests vary and installed aws4fetch defaults to retries=10 for eligible
+  failures. Count physical attempts, not merely helper calls, before execution.
+  Only exact keys created by the run may be deleted; no bucket-wide cleanup.
+- Real R2 preflight remains BLOCKED; no valid use authorization/Claim/GO created.
+  No tests rerun, browser/Provider requests, R2 operations or Production reads or
+  writes. UI03 remains BLOCKED without additional diagnosis; prior evidence is
+  unchanged. Catalog ACTIVE, USD0, Public Beta NOT_AUTHORIZED.
+  After any future approved test, verify exact test-object removal and remind
+  the owner to disable the test bucket Public Development URL.
 
 ## Simplified Playwright Local Evidence (2026-10-15)
 
