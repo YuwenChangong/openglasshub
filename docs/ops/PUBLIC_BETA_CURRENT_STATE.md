@@ -75,9 +75,12 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 - Previous scoped branch: `codex/r2-ticket-offline-fix-20261016`, based on
   `83a70395`; bounded offline signing diagnosis, exact S3 build-resolution fix
   and local/Mock regression only. No real R2 test authorization reused.
-- Current scoped branch: `codex/real-r2-video-once-20261016`, based on
+- Previous scoped branch: `codex/real-r2-video-once-20261016`, based on
   `cecb5af0`; new owner-approved single real R2 attempt. HEAD200,OPTIONS204;
   QA precheck incorrectly required200 and stopped before PUT. No business retry.
+- Current scoped branch: `codex/r2-video-retry-v2-20261016`, based on `b8858ec4`;
+  new independent one-time test completed:real R2 PUT/playback/bucket Range/delete/
+  absence PASS. No code changes,Production access,push or deployment.
 - Recovery Version `1b327fed-be4b-4873-9fcd-6514e014916c`: verified content [R],
   PRE-HARDENING ONLY. Never use it as the default post-Hardening recovery target.
 - `CATALOG_HOLD=ACTIVE`; writers, queues and retries remain held. Current continued
@@ -122,11 +125,67 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | Isolated real R2 minimal E2E | BLOCKED before cloud dispatch; local run5 PASS/1 FAIL | Valid2028-byte synthetic H.264 MP4 generated. Composer linked local Supabase fallback, rejected by the real-R2-only assertion. R2 calls0/30, no object uploaded/deleted; temporary local state cleaned. Precise local ticket/interception failure UNKNOWN; no automatic business retry or inferred R2 failure |
 | R2 ticket offline repair | PROVEN local SDK build defect repaired; next real attempt READY_FOR_OWNER_APPROVAL only | Node S3 runtime called browser core Symbol as function. Local Workerd reproduced TypeError; consistent browser runtime resolution fixes signing. Same browser/direct Worker ticket endpoints500 ->200. Seven targeted checks PASS plus actual fixed ticket flow PASS; R2 calls0. Image source unchanged; no real upload/playback/delete PASS |
 | New one-time real R2 attempt | BLOCKED before PUT by QA CORS status assertion | New run eaf565c6a919: signing ticket200,HEAD Bucket200,OPTIONS204. Only2/30 R2 requests,PUT0/DELETE0. Full CORS headers were not retained; do not infer a CORS permission failure. QA-only200/204 correction verified offline afterward,not retried online. Local cleanup PASS,real video/playback/Range/delete still NOT_RUN |
+| Real R2 video E2E retry v2 | PASS for approved isolated one-object scope;12/12 current checkpoints PASS | Run a16768d45aed:2028-byte H.264 MP4,PUT200,size HEAD200,Chrome decode/playback,bucket Range206,application DELETE204,HEAD404 twice,local rows0.11/30 controlled requests(work8/22,cleanup3/8). Site proxy Range still FULL200/not forwarded;not a proxy206 or Production parity PASS. Cleanup independently verified |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
 Receipt reuse does not authorize execution. Historical time conflicts, 20-second
 timeout FAIL, unknown upload side effects and retained consumed Claims stay unchanged.
+
+## Real R2 Video E2E Retry v2 Completed (2026-10-16)
+
+- Owner separately approved this one-time test,not an old Claim/budget replay.
+  Existing bucket/credential/CORS/billing proofs reused;new budget starts0,
+  total30,work22,cleanup reserve8,no concurrent media test or automatic retry.
+  Only exact owned key in ogh-e2e-video-20261016 permitted;no other bucket list,
+  object access or Production Supabase/Production R2/Provider configuration use.
+- Existing code unchanged from b8858ec4;204 precheck correction present. Fresh
+  value-blind fields/approved bucket/reviewed public URL/Production distinction
+  verified. Fresh owned Supabase55 migrations and temporary A/B/ADMIN contexts
+  used;the required identity setup is not a rerun of all historical Auth tests.
+- Run a16768d45aed:12/12 actual checkpoints PASS (4 local identity/setup and8
+  scoped media/precheck checks). Fresh synthetic MP42028 bytes,H.264 avc1.42001E,
+  ftyp container,sha256
+  180b0869efaeec43569d9dae6c2acc9ade569b601fbb4b69ca30e97b1cd6eec0.
+  No external content copied,no real-user media or credentials used.
+- HEAD Bucket200;CORS OPTIONS204 with exact Origin match,PUT and content-type
+  response permissions confirmed. Actual local signing ticket200,successful
+  target validation. One presigned PUT200;local media API201,storage path retains
+  the R2 tmp namespace (not Supabase fallback),signed object HEAD200,size2028.
+- Real Chrome decoded the uploaded video:currentTime0.1167,readyState4,
+  videoWidth160/videoHeight90,error null. Real public test URL reads succeeded;
+  Public Development URL was usable at execution,no dashboard setting changed.
+- Authenticated direct bucket Range request returns206,exact bytes0-31 and total
+  size checked against fixture. Site /api/media/post proxy with Range returns200
+  with full original bytes/hash;it does NOT forward Range. Report this delivery
+  limitation separately,not as proxy206 success or Production-performance proof.
+- User B delete403 with0 R2 dispatches. Author A normal application DELETE
+  succeeds,cleanup.ok=true;R2 DELETE204,media rows0,signed HEAD404. Repeating the
+  application delete succeeds with no extra R2 DELETE;second signed HEAD404.
+  Exact owned object reference a623b713714ebb8a510d,no residual test object.
+  This does not assert the entire bucket is empty;no objects enumerated.
+- Budget11/30 controlled requests:work8/22,cleanup3/8;HEAD4,OPTIONS1,PUT1,GET4,
+  DELETE1;denied0,retries0,redirects0. All received responses retained as safe
+  metadata. This is NOT account-wide or full-browser hidden-traffic hard control.
+  No automatic new authorization or later request is implied by unused capacity.
+- Cleanup PASS:browser/Worker disposed,owned Supabase containers/volumes absent,
+  temporary accounts/rows/Storage fixtures/DPAPI state deleted,active pointer
+  absent,no4328/56321/56322 listeners. Reusable ignored protected R2 config kept.
+  Safe receipts/build config checked for absence of actual R2 access/secret keys.
+- Evidence:output/playwright/local-supabase-e2e/a16768d45aed/RESULTS_SAFE.json,
+  CLEANUP_SAFE.json,REAL_R2_VIDEO_ACCEPTANCE_SAFE.md,real-r2-video-safe.png.
+  Screenshot was captured after the video source was removed to stop reads;it
+  proves the page UI,not decoded playback by itself. Playback telemetry above
+  and real network/object checks are the execution evidence.
+- Real isolated R2 video scope CLOSED;no need to repeat configuration/SDK/CORS
+  diagnostics. Existing Group1 local10/14,RLS16/16 and business23 historical PASS
+  remain separately scoped;do not infer Production parity or overall Beta PASS.
+  UI03 stays BLOCKED with no additional diagnosis,Catalog ACTIVE,Public Beta
+  NOT_AUTHORIZED. Production requests/writes0,no deployment/push/paid resources.
+- Reused October16 account usage snapshot is delayed,not proof of real-time
+  remaining allowance or final incremental billing. Owner accepted that risk;
+  no account-wide hard zero-fee guarantee is claimed. Owner should now disable
+  this test bucket's Public Development URL;Codex did not change cloud settings.
 
 ## New Single Real R2 Attempt and Precheck Stop (2026-10-16)
 
