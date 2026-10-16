@@ -60,9 +60,12 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 - Previous scoped branch: `codex/reports-ui03-500-fix-20261016`, based on
   `850355bc`; exact local500 reproduction and targeted report UI/RLS evidence.
   Root cause remains UNKNOWN; no speculative product/permission/runtime patch.
-- Current scoped branch: `codex/reports-http500-stack-20261016`, based on
+- Previous scoped branch: `codex/reports-http500-stack-20261016`, based on
   `999d8c4b`; two bounded local entry reproductions, real Miniflare dispatch
   stack captured. Downstream native disconnect cause still UNKNOWN; no product fix.
+- Current scoped branch: `codex/reports-workerd-final-20261016`, based on
+  `a22b61ed`; one newly owner-authorized native-output/lifecycle reproduction.
+  Root class UNKNOWN; UI03_LOCAL_RUNTIME_UNRESOLVED. Temporary probe removed.
 - Recovery Version `1b327fed-be4b-4873-9fcd-6514e014916c`: verified content [R],
   PRE-HARDENING ONLY. Never use it as the default post-Hardening recovery target.
 - `CATALOG_HOLD=ACTIVE`; writers, queues and retries remain held. Current continued
@@ -103,6 +106,7 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | Reports admin P1 repair | Idle-read loop CLOSED locally; latest distinct14 PASS/1 FAIL | Stable auth dependencies and cancellation preserve refresh/review/Auth behavior. Idle0 extra reads over1200ms; real mobile/role-change checks PASS. Ordinary report page locally returns500 in denial/navigation path, cause UNKNOWN; UI-03 not closed. Original10/14 and16/16 local RLS retained |
 | Reports UI03 local500 followup | Latest15 PASS/1 FAIL; reports11/12 PASS | Real user report UI201 and database reporter verification; A/B own rows1/cross rows0, ADMIN both, anon0 via ordinary RLS. Eight5-second idle segments add0 list requests. GET /admin/reports/ for B still500; direct Worker comparison200 is not causal proof. No product/GRANT/RLS change; UI03 FAIL,10/14 unchanged |
 | Reports HTTP500 exact stack | CAPTURED at Miniflare entry.worker.js:4733:22 | B-only200/forbidden UI; original minimal A-denial prefix then B still500. Local service.fetch rejects Network connection lost; catch4736 generates182-byte plain500. No downstream/root stack or safe fix proven. Two-reproduction limit reached; UI03 FAIL, other valid evidence reused |
+| Final bounded workerd investigation | UI03_LOCAL_RUNTIME_UNRESOLVED / BLOCKED; original target FAIL retained | One additional owner-approved local run:4 prerequisites PASS/1 target FAIL. Native stdout/cause/lifecycle captured. Both processes alive at500, exit only during cleanup. SETUP TLS alerts do not prove the target disconnect cause. No safe fix or application/runtime classification proven; stop further diagnosis and continue independent Beta work |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -125,6 +129,58 @@ timeout FAIL, unknown upload side effects and retained consumed Claims stay unch
   path. Production-bound Preview and actor configurations must not be reused.
 - Owned browser contexts closed; owned Astro daemon stopped and local test ports
   verified released. No new Native QA authorization, Claim, GO or deployment.
+
+## Final Bounded Workerd Investigation (2026-10-16)
+
+- Owner separately authorized exactly1 new local reproduction after the prior
+  two-attempt cap. Run `fc32d3d0ff45` used the same HTTPS4328 entry/build/local
+  Supabase and minimal original prefix;4 login/context prerequisites PASS and
+  B target GET /admin/reports/ FAIL500. No automatic additional attempt or fix
+  regression, and no business23/RLS16/idle/Turnstile suite rerun.
+- Historical receipts had no raw native stdout/stderr or child lifecycle proof;
+  their Miniflare proxy stack was not relabelled a workerd root cause. Temporary
+  Node child_process diagnostic-channel observer attached before startup and
+  read only same-parent workerd stdout/stderr before Miniflare log filtering.
+  Standalone local --version validated observation, not website/Production use.
+  Secrets/identities/URLs were redacted in memory; no config stdin, environment,
+  command-line values, header values, tokens or account export. The temporary
+  observer and phase instrumentation were completely removed after this run;
+  application, QA source, dependencies and runtime settings equal task baseline.
+- Native output CAPTURED: process1 stdout9912 bytes, process2 stdout0, both stderr0;
+  28 matching native messages, all SETUP, `SSLV3_ALERT_CERTIFICATE_UNKNOWN` at
+  kj/compat/tls.c++:82. This symbolic error name does not establish an SSLv3
+  protocol was used. No same-class output at target B_PAGE, no connection/request
+  ID proving a link, and no TLS/certificate/root cause or safe bypass inferred.
+-45 ordered events retained, no truncation: A_PAGE10034ms, A_LIST_DENIAL10258ms,
+  A_ACTION_DENIAL10313ms, B_PAGE10367ms, ProxyController error10399ms, HTTP50010403ms,
+  direct comparison20010422ms, cleanup starts10422ms. The wrapped cause chain still
+  ends at `Network connection lost.`; no application stack or deeper native cause.
+  The wrapper's own message is empty; its cause holds the network error, so old
+  outer-message-only counters0 were not proof that no proxy error occurred.
+  Sequence correlation/ordering observed, causal necessity remains UNKNOWN.
+- Both workerd processes alive with null exitCode at500. No unexpected exit,
+  replacement or crash observed; cleanup later sends SIGKILL, exits10639/10651ms
+  with null code and closes both streams. Cleanup therefore follows this failure;
+  do not misreport its SIGKILL as the cause. This does not exclude an isolate- or
+  connection-level failure without process exit. Host free memory2589MiB at
+  startup/1726MiB at500 and Node RSS289MiB at startup are snapshots, not proof
+  about per-isolate resource limits or absence of all memory pressure. Runner
+  sets no custom resource limits; no OOM/fatal message captured.
+- ROOT_CAUSE_CLASS=UNKNOWN, MINIMAL_FIX=BLOCKED. Do not change RLS, grants, Auth,
+  SSR, certificates, dependencies or transport based on these noncausal alerts.
+  Page200 plus client denial and protected API403 remain separate contract layers;
+  this target500 is not a valid denial or UI03 PASS. Historical B-only200 is reused,
+  not rerun or used to override the original failed sequence.
+- UI03 diagnostic disposition BLOCKED / UI03_LOCAL_RUNTIME_UNRESOLVED; raw target
+  FAIL500 retained. GROUP1 local10/14 and Production parity UNKNOWN. Existing
+  reporter/admin/idle/business23/RLS16 valid evidence reused unchanged. Stop further
+  workerd/QA diagnosis; R2 isolation preparation/video integration and other
+  independent release work continue separately, without implicit cloud permission.
+- Exact owned database/volumes/users/fixtures/DPAPI credentials/TLS and processes
+  cleaned; active pointer/ports absent. Production/third-party requests/writes0,
+  no deploy/push/R2 use, Catalog ACTIVE, USD0/Beta not authorized. Evidence is in
+  `output/playwright/local-supabase-e2e/fc32d3d0ff45/` and scoped
+  `WORKERD_FINAL_REVIEW_SAFE.md` / `WORKERD_FINAL_SUMMARY_SAFE.json` in its parent.
 
 ## Reports HTTP500 Exact Stack (2026-10-16)
 
