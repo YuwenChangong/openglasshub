@@ -66,9 +66,12 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 - Previous scoped branch: `codex/reports-workerd-final-20261016`, based on
   `a22b61ed`; one newly owner-authorized native-output/lifecycle reproduction.
   Root class UNKNOWN; UI03_LOCAL_RUNTIME_UNRESOLVED. Temporary probe removed.
-- Current scoped branch: `codex/isolated-r2-offline-preflight-20261016`, based on
+- Previous scoped branch: `codex/isolated-r2-offline-preflight-20261016`, based on
   `ad85cda0`; value-blind local R2 configuration preflight only. No cloud access,
   credential/environment mutation, application change, live test or authorization.
+- Current scoped branch: `codex/isolated-r2-minimal-e2e-20261016`, based on
+  `b2d4fe31`; owner-approved single isolated R2 attempt in the existing local
+  runner. Stopped before any R2 dispatch; local Storage fallback is NOT R2 PASS.
 - Recovery Version `1b327fed-be4b-4873-9fcd-6514e014916c`: verified content [R],
   PRE-HARDENING ONLY. Never use it as the default post-Hardening recovery target.
 - `CATALOG_HOLD=ACTIVE`; writers, queues and retries remain held. Current continued
@@ -110,11 +113,69 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | Reports UI03 local500 followup | Latest15 PASS/1 FAIL; reports11/12 PASS | Real user report UI201 and database reporter verification; A/B own rows1/cross rows0, ADMIN both, anon0 via ordinary RLS. Eight5-second idle segments add0 list requests. GET /admin/reports/ for B still500; direct Worker comparison200 is not causal proof. No product/GRANT/RLS change; UI03 FAIL,10/14 unchanged |
 | Reports HTTP500 exact stack | CAPTURED at Miniflare entry.worker.js:4733:22 | B-only200/forbidden UI; original minimal A-denial prefix then B still500. Local service.fetch rejects Network connection lost; catch4736 generates182-byte plain500. No downstream/root stack or safe fix proven. Two-reproduction limit reached; UI03 FAIL, other valid evidence reused |
 | Final bounded workerd investigation | UI03_LOCAL_RUNTIME_UNRESOLVED / BLOCKED; original target FAIL retained | One additional owner-approved local run:4 prerequisites PASS/1 target FAIL. Native stdout/cause/lifecycle captured. Both processes alive at500, exit only during cleanup. SETUP TLS alerts do not prove the target disconnect cause. No safe fix or application/runtime classification proven; stop further diagnosis and continue independent Beta work |
+| Isolated real R2 minimal E2E | BLOCKED before cloud dispatch; local run5 PASS/1 FAIL | Valid2028-byte synthetic H.264 MP4 generated. Composer linked local Supabase fallback, rejected by the real-R2-only assertion. R2 calls0/30, no object uploaded/deleted; temporary local state cleaned. Precise local ticket/interception failure UNKNOWN; no automatic business retry or inferred R2 failure |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
 Receipt reuse does not authorize execution. Historical time conflicts, 20-second
 timeout FAIL, unknown upload side effects and retained consumed Claims stay unchanged.
+
+## Owner-Approved Minimal R2 Attempt (2026-10-16)
+
+- Owner supplied v2 screenshots under `C:/Temp/ogh-r2-evidence-v2`.
+  Saved Active token list names only the test bucket and Object Read & Write;
+  full Settings screenshots associate the same bucket, public URL and saved
+  local CORS. Account/bucket/public URL matched the protected local file without
+  displaying secrets. This supersedes missing screenshot linkage below, not the
+  historical preflight receipt. Key identifier linkage remains UNVERIFIED.
+- Owner attested credential provenance. Separately approved single HEAD Bucket
+  returned200:1 request,0 retries/redirects/object-body reads/uploads/deletes.
+  That proves test-bucket access, NOT Token identifier equality, write capability
+  or exclusion of other buckets. It is separate from the E2E budget below.
+- Owner then approved one video <=64KiB, exact test bucket only, native existing
+  presigned upload/application delete,30 controlled requests with8 reserved for
+  cleanup, no automatic business retries. Accepted delayed billing and unproven
+  credential-exclusivity risks; no additional paid resource/Production access.
+  Previously reviewed October16 account snapshot remains Class A3/Class B44/
+  displayed storage0/billable0. No live billing read was made; this does not prove
+  current global remaining allowance or future absolute zero cost.
+- Only QA code changed: opt-in existing-runner case, exact one-object targets,
+  in-memory R2 bindings (not build vars/files), count-before-dispatch work22 plus
+  cleanup8, no redirect follow, rejection of duplicate PUT/automatic DELETE
+  attempts, per-request10-second timeout and exact-key cleanup fallback.
+  Controlled route fetch uses maxRetries0/maxRedirects0. This is NOT an account-
+  wide or whole-browser hard budget. No new service, proxy platform, product
+  change, Production config, new cloud resource or old QA executor was used.
+- Five deterministic offline boundary checks PASS: work22,cleanup8,total30,
+  unknown target denial and duplicate PUT denial. Syntax/diff checks PASS.
+  Local run `fcf73eb08cfa`: A/B/ADMIN real-local browser setup and three-context
+  isolation4 PASS; synthetic MP4 fixture1 PASS (2028 bytes, MP4 ftyp and H.264
+  MediaRecorder avc1.42001E). Existing anonymous43/RLS16/UI03/history not rerun.
+- Single composer submission linked a non-tmp local Supabase Storage video.
+  `R2_FALLBACK_NOT_ACCEPTED` deliberately FAILS that checkpoint; safe R2 attempts
+  list empty, work0,cleanup0,denied0 and no accepted owned R2 key. The precise
+  ticket response/interceptor validation error was not retained and remains
+  UNKNOWN. Source confirms Failed-to-fetch can trigger the existing fallback;
+  that correlation is not proof of the specific trigger. Do not blame R2,
+  credentials, CORS or Production from this result. No second upload attempted.
+- Real R2 upload/playback/Range/delete/absence assertions NOT_EXECUTED/BLOCKED.
+  No R2 object upload attempted, so no R2 cleanup dispatch was necessary. Local
+  accounts/rows/Storage objects/DPAPI state removed by owned Supabase teardown;
+  exact project containers/volumes absent, active pointer absent and local
+  application/API/database ports not listening. Browser/Worker disposed.
+  Reusable protected R2 configuration preserved. No screenshot of a successful
+  R2 playback exists; do not claim one.
+- Evidence: `output/playwright/local-supabase-e2e/fcf73eb08cfa/RESULTS_SAFE.json`,
+  `CLEANUP_SAFE.json` and `REAL_R2_ATTEMPT_REVIEW_SAFE.md` in the same directory.
+  Prior23 business PASS,original16 local RLS,Group1 local10/14 remain reused;
+  UI03 stays BLOCKED with no further runtime diagnosis. Production parity UNKNOWN.
+- Minimal remaining work is the local signature-ticket adapter stop, not bucket
+  recreation, another Token, billing screenshot or historical test rerun.
+  No automatic retry is authorized by this blocked result. After future approved
+  use, verify exact-key cleanup and disable the test Public Development URL;
+  the owner may also disable that public URL now while integration is blocked.
+  This run R2 requests0/uploads0/deletes0, Production requests/writes0,
+  Catalog ACTIVE, Public Beta NOT_AUTHORIZED. No push/deploy.
 
 ## Isolated R2 Offline Configuration Preflight (2026-10-16)
 

@@ -11,11 +11,12 @@ import { buildOutboundFetchInit } from '../lib/locale-v2-outbound-bridge.mjs';
 import { verifyLocalCatalog } from './local-rls-assertions.mjs';
 
 export async function runCases({s,root,environment,command,sql}) {
+  const realR2=process.env.OGH_E2E_REAL_R2==='1';
   const commentDelete=process.env.OGH_E2E_COMMENT_DELETE==='1';
   const thumbnail=process.env.OGH_E2E_THUMBNAIL==='1';
   const finalScope=process.env.OGH_E2E_FINAL_SCOPE==='1';
   const continuation=process.env.OGH_E2E_CONTINUATION==='1';
-  const commentRegression=finalScope||thumbnail||continuation||commentDelete||process.env.OGH_E2E_COMMENT_REGRESSION==='1';
+  const commentRegression=realR2||finalScope||thumbnail||continuation||commentDelete||process.env.OGH_E2E_COMMENT_REGRESSION==='1';
   const out = path.join(root,'output/playwright/local-supabase-e2e',s.runId);
   await fs.mkdir(out,{recursive:true});
   const report = {environment:'DISPOSABLE_LOCAL_SUPABASE_REAL_ASTRO_REAL_AUTH',runId:s.runId,results:[],group1:[],
@@ -27,7 +28,7 @@ export async function runCases({s,root,environment,command,sql}) {
   const only=process.env.OGH_E2E_ONLY?.split(',');
   const runtimeFaults={crossRequestIo:0,hangingPromise:0,networkConnectionLost:0,proxyNetworkConnectionLost:0,fatalRuntime:0};
   if(finalScope)report.runtimeFaultCategories=runtimeFaults;
-  let worker,browser;
+  let worker,browser,r2;
   const clients={},sessions={},pages={},contexts={};
   const localFaults={failThumbnailDelete:false};
   let createdPostId;
@@ -59,6 +60,10 @@ export async function runCases({s,root,environment,command,sql}) {
   }
   async function dbCount(table,where) { return +(await sql(s,`select count(*) from public.${table} where ${where};`)).stdout.trim(); }
   try {
+    if(realR2) {
+      const {createIsolatedR2Run}=await import('./local-real-r2-cases.mjs');
+      r2=await createIsolatedR2Run({root,s,report});
+    }
     for (const [actor,identity] of commentRegression?[]:Object.entries(s.actors)) {
       await check('REAL_NODE_AUTH_'+actor,async()=>{
         const client=createClient(s.status.API_URL,s.status.ANON_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
@@ -112,7 +117,7 @@ export async function runCases({s,root,environment,command,sql}) {
     await command(process.execPath,['scripts/build-workers.mjs','--local-config',config],{timeout:180000});
     console.log('LOCAL_APPLICATION_BUILD=PASS');
     worker=await unstable_startWorker({config:path.join(root,'dist/server/wrangler.json'),envFiles:[],build:{bundle:false},
-      bindings:Object.fromEntries(Object.entries({...vars,SUPABASE_SERVICE_ROLE_KEY:s.status.SERVICE_ROLE_KEY,RATE_LIMIT_SALT:randomBytes(32).toString('hex')}).map(([name,value])=>[name,{type:'plain_text',value}])),
+      bindings:Object.fromEntries(Object.entries({...vars,...r2?.bindings,SUPABASE_SERVICE_ROLE_KEY:s.status.SERVICE_ROLE_KEY,RATE_LIMIT_SALT:randomBytes(32).toString('hex')}).map(([name,value])=>[name,{type:'plain_text',value}])),
       dev:{remote:false,watch:false,liveReload:false,persist:false,inspector:false,logLevel:'none',
         ...(finalScope?{structuredLogsHandler(log){const value=JSON.stringify(log);
           if(/Cannot perform I\/O|I\/O.*different request/i.test(value))runtimeFaults.crossRequestIo++;
@@ -122,6 +127,7 @@ export async function runCases({s,root,environment,command,sql}) {
         }}:{}),server:{hostname:'127.0.0.1',port:4328,secure:true,httpsKeyPath:key,httpsCertPath:cert},
         async outboundService(request) {
           const url=new URL(request.url);
+          if(r2?.isTarget(url))return r2.workerFetch(request);
           if(url.origin!==new URL(s.status.API_URL).origin){report.externalRequestsBlocked++;return new Response('LOCAL_OUTBOUND_DENIED',{status:599});}
           if(thumbnail&&localFaults.failThumbnailDelete&&request.method==='DELETE'&&url.pathname==='/storage/v1/object/post-media') {
             const body=await request.clone().json();
@@ -139,7 +145,7 @@ export async function runCases({s,root,environment,command,sql}) {
     async function newContext(width=1440) {
       const c=await browser.newContext({viewport:{width,height:1000},locale:'en-US',ignoreHTTPSErrors:true,serviceWorkers:'block'});
       c.setDefaultTimeout(10000);
-      await c.route('**/*',route=>{const u=new URL(route.request().url());if([origin,new URL(s.status.API_URL).origin].includes(u.origin))return route.continue();report.externalRequestsBlocked++;return route.abort();});
+      await c.route('**/*',route=>{const u=new URL(route.request().url());if(r2?.isTarget(u))return r2.browserFetch(route);if([origin,new URL(s.status.API_URL).origin].includes(u.origin))return route.continue();report.externalRequestsBlocked++;return route.abort();});
       return c;
     }
     const storageKey='sb-'+new URL(s.status.API_URL).hostname.split('.')[0]+'-auth-token';
@@ -208,9 +214,9 @@ export async function runCases({s,root,environment,command,sql}) {
     },'auth');
     if(commentRegression) {
       for(const actor of ['A','B','ADMIN']) sessions[actor]=await currentSession(pages[actor]);
-      const module=await import(finalScope?'./local-final-scope-cases.mjs':thumbnail?'./local-thumbnail-regression.mjs':continuation?'./local-business-continuation.mjs':commentDelete?'./local-comment-delete-regression.mjs':'./local-comment-regression.mjs');
-      const run=finalScope?module.runFinalScope:thumbnail?module.runThumbnailRegression:continuation?module.runContinuation:module.runCommentRegression;
-      await run({s,root,out,sql,check,report,localFetch,readTable,dbCount,browserApi,responseFor,goto,pages,contexts,newContext,postId,circleId,circleSlug,sessions,currentSession,storageKey,origin,localFaults});
+      const module=await import(realR2?'./local-real-r2-cases.mjs':finalScope?'./local-final-scope-cases.mjs':thumbnail?'./local-thumbnail-regression.mjs':continuation?'./local-business-continuation.mjs':commentDelete?'./local-comment-delete-regression.mjs':'./local-comment-regression.mjs');
+      const run=realR2?module.runRealR2Cases:finalScope?module.runFinalScope:thumbnail?module.runThumbnailRegression:continuation?module.runContinuation:module.runCommentRegression;
+      await run({s,root,out,sql,check,report,localFetch,readTable,dbCount,browserApi,responseFor,goto,pages,contexts,newContext,postId,circleId,circleSlug,sessions,currentSession,storageKey,origin,localFaults,r2});
       return {failed:report.results.some(x=>x.status==='FAIL')||Boolean(report.environmentBlocker)};
     }
     for(const actor of ['A','B','ADMIN']) await check('ADMIN_API_'+actor,async()=>{
@@ -329,6 +335,7 @@ export async function runCases({s,root,environment,command,sql}) {
     report.sqlDiagnostic=e.stderr?.match(/ERROR:\s+([^\r\n]+)/)?.[1]?.replace(/'[^']*'|"[^"]*"|[a-f0-9]{8}-[a-f0-9-]{27}/gi,'[LOCAL_IDENTIFIER]').slice(0,160);
     console.log(JSON.stringify({environmentBlocker:report.environmentBlocker,sqlDiagnostic:report.sqlDiagnostic}));
   } finally {
+    if(r2)await r2.finalize();
     if(browser)await browser.close();if(worker)await worker.dispose();
     for(const client of Object.values(clients))await client.auth.signOut();
     report.cleanup='BROWSERS_AND_WORKER_CLOSED_DATABASE_CLEANUP_BY_CALLER';
