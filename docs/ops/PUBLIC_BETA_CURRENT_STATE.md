@@ -1,8 +1,9 @@
 # Public Beta Current State
 
-Authoritative release/progress baseline. Updated 2026-10-16 by offline release
-consolidation, reusing prior local Playwright and isolated R2 evidence. No tests
-or Production requests were replayed for this consolidation.
+Authoritative release/progress baseline. Updated 2026-10-16 by the independently
+owner-approved Production Read-Only Release Audit v1: two READ ONLY metadata SQL
+requests and three Cloudflare metadata GETs. No application tests were replayed,
+no business rows read, and no Production writes or deployments performed.
 Read this first for every task. This document is not an authorization or GO.
 `VERIFIED` is scoped historical evidence, not proof of unchanged live state now.
 Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
@@ -11,9 +12,12 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 
 - Released source: `88680a6eaab8de4123199f16b325ec0a430b0b86`.
 - Build ID: `d98da799-d41d-41dc-acaf-8c6675fd799a` (not the Worker Version ID).
-- Last verified Production Version: `b2b62ec9-bb8d-4159-ac99-08fca5740134`,
-  traffic 100%, recovery traffic 0%, from the consumed v11 pre-Deployment receipt.
-  Current live state is UNKNOWN until an independently authorized dynamic check.
+- Current Production Worker Version: `b2b62ec9-bb8d-4159-ac99-08fca5740134`,
+  version152, traffic100%, verified by this read-only audit at2026-10-16T06:02:06Z.
+  Deployment ID `e8481d68-d2d5-473b-8b0c-b82b8fa33fc3`. The live version matches
+  historical v11/deployment evidence; this is not a fresh application smoke.
+  Current version summary has no source-Commit annotation. Released source/build
+  mapping above is reused historical evidence, not a newly returned Git SHA.
 - Audited local release candidate: `4299aa3afa45dc8c30ebbe2e63a17fcd6bbb0524`.
   First post-release product fix: `9161ca71e6fcceef984c8129f156667d536c7a44`,
   whose parent is the released source. Later product fixes are included below;
@@ -83,9 +87,12 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 - Previous scoped branch: `codex/r2-video-retry-v2-20261016`, based on `b8858ec4`;
   new independent one-time test completed:real R2 PUT/playback/bucket Range/delete/
   absence PASS. No code changes,Production access,push or deployment.
-- Current scoped branch: `codex/public-beta-readiness-consolidation-20261016`,
+- Previous scoped branch: `codex/public-beta-readiness-consolidation-20261016`,
   based on `4299aa3a`; offline Git/source/migration review and this baseline only.
   No merge, remote refresh, build replay, test execution or deployment.
+- Current scoped branch: `codex/production-readonly-release-audit-v1-20261016`,
+  based on `f1b36c85`; bounded owner-approved metadata reads and local audit records.
+  No merge, push, migration execution, application RPC call or new test framework.
 - Recovery Version `1b327fed-be4b-4873-9fcd-6514e014916c`: verified content [R],
   PRE-HARDENING ONLY. Never use it as the default post-Hardening recovery target.
 - `CATALOG_HOLD=ACTIVE`; writers, queues and retries remain held. Current continued
@@ -132,6 +139,7 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | New one-time real R2 attempt | BLOCKED before PUT by QA CORS status assertion | New run eaf565c6a919: signing ticket200,HEAD Bucket200,OPTIONS204. Only2/30 R2 requests,PUT0/DELETE0. Full CORS headers were not retained; do not infer a CORS permission failure. QA-only200/204 correction verified offline afterward,not retried online. Local cleanup PASS,real video/playback/Range/delete still NOT_RUN |
 | Real R2 video E2E retry v2 | PASS for approved isolated one-object scope;12/12 current checkpoints PASS | Run a16768d45aed:2028-byte H.264 MP4,PUT200,size HEAD200,Chrome decode/playback,bucket Range206,application DELETE204,HEAD404 twice,local rows0.11/30 controlled requests(work8/22,cleanup3/8). Site proxy Range still FULL200/not forwarded;not a proxy206 or Production parity PASS. Cleanup independently verified |
 | Current release consolidation | BLOCKED for release approval, not a new proven application failure | All seven product-fix commits included in candidate4299aa3a; two new canonical migrations and local-only rate-limit fixture require Production parity review. Group1 remains10/14,UI02 partial,UI03 BLOCKED. No merge/deploy/test replay |
+| Production Read-Only Release Audit v1 | Database ledger VERIFIED; two migrations MISSING; rate-limit RPC COMPATIBLE for checked static contract | Five reads: DB2 READ ONLY + CF3 GET,all successful,no retry. Current Worker152/b2b62ec9 at100%; required Secret names present. Plain-variable targets/modes and post-Hardening recovery not freshly verified. No function invocation or state change |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -139,6 +147,115 @@ Receipt reuse does not authorize execution. Historical time conflicts, 20-second
 timeout FAIL, unknown upload side effects and retained consumed Claims stay unchanged.
 Rows above preserve chronological scoped outcomes; earlier R2 BLOCKED rows are
 historical, not a reversal of the latest isolated R2 PASS.
+
+## Production Read-Only Release Audit v1 (2026-10-16)
+
+- Scope was separately approved by the owner in this task. Fixed budget DB2/CF3,
+  no retries. Both SQL requests used REPEATABLE READ READ ONLY, statement timeout
+  8s, lock timeout1s and ROLLBACK; actual transaction_read_only=on returned twice.
+  Queries used system catalogs plus the two specific migration-ledger IDs only.
+  No application function was invoked, even through SELECT; no business/user rows
+  or R2 objects were read. Existing transport credentials were not exported.
+- Evidence: docs/ops/reconciliation/production-readonly-release-audit-v1-safe.json
+  and the fixed catalog/ledger .sql files beside it. Collected at06:02:06Z;
+  this timestamp is receipt collection time, not invented per-request timing.
+  Counts represent two submitted database metadata requests and three direct
+  Cloudflare GETs, not an independently observed total of connector-internal traffic.
+
+### Database Differences Now Proven
+
+| Candidate requirement | Current Production observation | Release action |
+| --- | --- | --- |
+| 20261015072723 reaction privileges | Ledger row absent; comment_reactions exists with RLS enabled; anon/authenticated have none of the required column SELECT/INSERT or table DELETE permissions | MISSING, not recorded-but-drifted. Separately approve/apply this existing migration before exposing the candidate comment/reaction flow |
+| 20261015074931 deleted-comment placeholders | Ledger row absent; public.deleted_comment_placeholders has no overload; can_access_public_circle exists with anon/authenticated EXECUTE | MISSING, not a drifted applied migration. Separately approve/apply this existing migration before the new comments API |
+| consume_forum_rate_limit(uuid,text,text,bigint) | One public overload exists, exact argument names/types and TABLE(allowed boolean,decision text); postgres owner, plpgsql, SECURITY DEFINER,VOLATILE,PARALLEL UNSAFE; expected search_path/lock1s/statement3s | COMPATIBLE for the inspected static contract; do NOT CREATE/REPLACE it in Production to fix a presumed absence |
+
+- Rate-limit normalized source MD5 matches reviewed local proposal exactly:
+  397369321f2d78b27bdd46bdb81fb2b0. PUBLIC/anon/authenticated EXECUTE=false;
+  service_role EXECUTE=true. public.forum_upload_attempts already exists with
+  expected column names/types and RLS enabled. These are static observations,
+  not execution/quota/latency PASS, complete all-role ACL review, or proof of
+  creation provenance. No raw function body or sensitive config was returned.
+- The noncanonical local fixture adds this one rate-limit function plus its
+  owner/EXECUTE setup; the ledger table is from existing canonical migrations.
+  The local runner also seeds disposable accounts/admin role/Catalog/consent data;
+  these fixture data/helper operations are not Production migration requirements.
+- Actual server dependency paths: POST /api/forum/posts (post_create),
+  POST /api/forum/comments (comment_create), POST /api/forum/circles (circle_create),
+  POST /api/forum/media-upload-guard (post_media_upload), and
+  POST /api/forum/external-video-upload (external_video_upload).
+  RPC/configuration failure is fail-closed through the existing wrapper; it does
+  not justify bypassing quotas. No such Production failure was tested here.
+- POST /api/forum/reports instead counts recent reports through its existing
+  reporter-scoped query (12/hour); it does not call this RPC. Verification-email
+  resend has a separate existing RPC. Neither was invoked or globally audited.
+- Governance/rebuild gap remains: the matching function is not defined by the
+  canonical migration set and older repository R2/R6 proposal documents describe
+  it as unexecuted. Current live presence supersedes that absence assumption,
+  but does not establish when/how it was installed or retroactively authorize SQL.
+  Review adoption of the existing exact implementation into the formal migration
+  baseline: clean local rebuild may create it; an already-existing Production
+  function must be verified/adopted, not blindly recreated/replaced. Any new
+  migration or ledger reconciliation requires separate explicit approval.
+- The candidate needs the two existing comment migrations, not an additional
+  unapproved rate-limit CREATE in Production. Code-integration preparation can
+  proceed offline; deploying/running the candidate comment path before those
+  migrations and rollout checks is NOT approved or considered parity PASS.
+
+### Deployment and Configuration Metadata
+
+- Default Wrangler OAuth was expired at initial local check; no Cloudflare request
+  was made then. Owner manually restored it. Fresh local validity/scopes passed;
+  exactly three HTTPS GETs completed200,10s timeout each,no redirects/retries:
+  deployments; deployable version summaries; script Secret names. No old executor,
+  authorization or Claim was used. No application, Pages page or storage request.
+- Active Worker openglasshub is version152/b2b62ec9 at100%, unchanged from the
+  historical release identity. No candidate deployment is indicated. Version
+  summary contains no Git SHA; source88680a6e/build mapping is historical reuse.
+  Secret names confirmed: R2_ACCESS_KEY_ID,R2_SECRET_ACCESS_KEY,RATE_LIMIT_SALT,
+  SUPABASE_ANON_KEY,SUPABASE_SERVICE_ROLE_KEY,TURNSTILE_SECRET_KEY. Presence does
+  not prove validity, matching targets or correct secret values.
+- PRODUCTION_CONFIG_METADATA=PARTIAL: intentionally skipped settings/version-detail
+  endpoints that can return variable values. Production plain-variable presence,
+  actual SUPABASE_URL/PUBLIC_SUPABASE_URL target consistency, CAPTCHA/sitekey/mode,
+  R2 public-base/bucket variables and moderation modes are not freshly verified.
+  Expected database target is source-bound xcbnxzjlsvtgzixurcof; the MCP SQL was
+  explicitly scoped to that project. No secret value or key API was queried.
+- Historical D_HARDENING evidence remains valid in its original scope; this is not
+  a complete policy or Auth re-audit. Version151/1b327fed is still listed as
+  deployable, but its PRE-HARDENING classification is unchanged. Listing does not
+  approve it as rollback; post-Hardening recovery compatibility remains UNKNOWN.
+  Catalog freeze is retained as the owner's instruction, not fresh proof that
+  every queue/writer is held. No configuration or traffic setting was changed.
+
+### Shortest Next Release Path
+
+1. Prepare one reviewed rollout/adoption change set: the two existing missing
+   migrations, non-overwriting formal baseline adoption of the already-compatible
+   rate-limit RPC, and candidate integration scope. Do not execute it under this
+   read-only authorization. No new production RPC implementation is presently needed.
+2. After approval of the formal local migration set, run a disposable clean replay
+   without the runner's extra proposal installation. Recheck only rate-limit
+   setup/affected write guards and comment/reaction/placeholder behavior; no full
+   16-Catalog-RLS/23-business/43-anonymous replay or new R2 upload is justified.
+   RLS16/16_LOCAL, business23 historical PASS, isolated R2 PASS are reused scoped
+   evidence, not Production functional outcomes.
+3. Keep original four remaining cases (AUTH01/UI01/UI02/UI03), UI02 partial and
+   UI03_BLOCKED/UNKNOWN unchanged. No additional local workerd diagnosis. Resolve
+   required configuration/recovery attestations and the explicit UI03 release
+   decision, then seek separate schema/deployment authorization and bounded
+   deployed-candidate Auth/RLS/UI smoke. Editing remains deferred, not PASS.
+
+- PRODUCTION_MIGRATION_LEDGER=VERIFIED; RATE_LIMIT_RPC_PRODUCTION=COMPATIBLE;
+  RELEASE_CANDIDATE_PARITY=BLOCKED; GROUP1_LOCAL_CASES=10/14;
+  GROUP1_REMAINING=4; UI02=LOCAL_PARTIAL_PASS; UI03=BLOCKED.
+- PRODUCTION_READ_REQUESTS=5 (DB2+CF3); PRODUCTION_WRITES=0; DEPLOYMENTS=0;
+  APPLICATION_RPC_INVOCATIONS=0; PRODUCTION_R2_REQUESTS=0; RETRIES=0.
+  MAX_ADDITIONAL_COST_USD=0; no new paid resource/service enabled.
+  CATALOG_HOLD=ACTIVE; GROUP_2/3=NOT_AUTHORIZED; PUBLIC_BETA_GO=NOT_AUTHORIZED.
+- NEXT_SINGLE_ACTION: owner approve offline preparation/review of the minimal
+  two-migration rollout and existing-RPC baseline adoption, without any Production
+  execution. No new credential intake, QA framework or old authorization reuse.
 
 ## Offline Release Readiness Consolidation (2026-10-16)
 
