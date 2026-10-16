@@ -26,6 +26,8 @@ test('local rebuild must not install the unexecuted proposal after migration rep
   assert.doesNotMatch(source, /operational-guardrails-rate-limit-r2-unexecuted-proposal\.sql/);
   assert.doesNotMatch(source, /await sql\(s,proposal/);
   assert.ok(source.includes('LOCAL_FORMAL_RATE_LIMIT_BASELINE_MISSING'));
+  assert.ok(source.includes("s.catalogFixtureApplied=process.env.OGH_E2E_MIGRATION_RECONCILIATION!=='1'"));
+  assert.ok(source.includes('if(s.catalogFixtureApplied)'));
 });
 
 test('comment regression cannot silently install a missing placeholder migration', () => {

@@ -119,12 +119,15 @@ async function prepare() {
       const role = (await sql(s,`select role from public.profiles where id=${quote(actor.id)};`)).stdout.trim();
       if (role !== actor.role) throw Error('LOCAL_ROLE_MISMATCH');
     }
+    s.catalogFixtureApplied=process.env.OGH_E2E_MIGRATION_RECONCILIATION!=='1';
+    if(s.catalogFixtureApplied) {
     stage = 'LOCAL_CATALOG_FIXTURE';
     const {buildRepositoryInventory} = await import('../lib/product-detail-repository-inventory.mjs');
     const {prepareCanonicalCatalogImport} = await import('../lib/catalog-canonical-import.mjs');
     const inventory = await buildRepositoryInventory({root});
     const catalog = await prepareCanonicalCatalogImport({root,publication:{blocked_count:0,candidates:inventory.identities.map(i=>({slug:i.slug,brand:i.brandKey,decision:i.slug==='xreal-air'?'PUBLISHED':'NOT_PUBLISHED'}))}});
     await sql(s,catalog.sql); await sql(s,catalog.activationSql); await sql(s,catalog.hardeningSql);
+    }
     stage = 'LOCAL_FORMAL_RATE_LIMIT_BASELINE';
     const rpc=(await sql(s,"select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='consume_forum_rate_limit';")).stdout.trim();
     if(rpc!=='1')throw Error('LOCAL_FORMAL_RATE_LIMIT_BASELINE_MISSING');

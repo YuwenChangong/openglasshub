@@ -26,10 +26,11 @@ export async function runMigrationReconciliation(h) {
   await check('FORMAL_CLEAN_REBUILD',async()=>{
     assert.equal(s.rateLimitBaseline,'FORMAL_MIGRATION_ONLY');
     assert.equal(s.rateLimitWasMissingFromCanonicalMigrations,false);
+    assert.equal(s.catalogFixtureApplied,false,'CATALOG_DDL_FIXTURE_NOT_ALLOWED_IN_FORMAL_REBUILD');
     assert.equal(await scalar(`select count(*) from supabase_migrations.schema_migrations where version=${q(version)};`),'1');
     assert.equal(await scalar(`select md5(btrim(regexp_replace(prosrc,'[[:space:]]+',' ','g'))) from pg_proc where oid=${q(identity)}::regprocedure;`),'397369321f2d78b27bdd46bdb81fb2b0');
     assert.equal(await scalar("select has_column_privilege('anon','public.comment_reactions','comment_id','SELECT') and has_column_privilege('authenticated','public.comment_reactions','reaction_type','INSERT') and has_table_privilege('authenticated','public.comment_reactions','DELETE') and not has_any_column_privilege('authenticated','public.comment_reactions','UPDATE');"),'t');
-    return {formalMigrations:s.migrations,extraProposalExecuted:false,rateLimitFingerprintMatches:true,reactionLeastPrivilege:true};
+    return {formalMigrations:s.migrations,extraProposalExecuted:false,extraCatalogDdlExecuted:false,rateLimitFingerprintMatches:true,reactionLeastPrivilege:true};
   },'migration');
   await check('EXISTING_RPC_ADOPTED_BY_NORMAL_LOCAL_MIGRATION',async()=>{
     const before=await snapshot();
