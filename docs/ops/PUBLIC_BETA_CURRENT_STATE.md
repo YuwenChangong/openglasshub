@@ -1,8 +1,8 @@
 # Public Beta Current State
 
-Authoritative release/progress baseline. Updated 2026-10-16 by local inspection
-and headless Playwright against the real loopback application, not by replaying
-Production tests.
+Authoritative release/progress baseline. Updated 2026-10-16 by offline release
+consolidation, reusing prior local Playwright and isolated R2 evidence. No tests
+or Production requests were replayed for this consolidation.
 Read this first for every task. This document is not an authorization or GO.
 `VERIFIED` is scoped historical evidence, not proof of unchanged live state now.
 Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
@@ -14,8 +14,10 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 - Last verified Production Version: `b2b62ec9-bb8d-4159-ac99-08fca5740134`,
   traffic 100%, recovery traffic 0%, from the consumed v11 pre-Deployment receipt.
   Current live state is UNKNOWN until an independently authorized dynamic check.
-- Local product head: `9161ca71e6fcceef984c8129f156667d536c7a44`, parent is
-  the released source. Its native destructive-confirmation fix is NOT deployed.
+- Audited local release candidate: `4299aa3afa45dc8c30ebbe2e63a17fcd6bbb0524`.
+  First post-release product fix: `9161ca71e6fcceef984c8129f156667d536c7a44`,
+  whose parent is the released source. Later product fixes are included below;
+  local commits are not proof of deployment or current Production parity.
 - Continuity branch: `codex/public-beta-release-continuity-20261013`, checkout
   `C:/Temp/ogh-product-beta-development-20261013`. No fetch, push or merge here.
   Local `origin/main` still names the released source; this is not a fresh remote check.
@@ -78,9 +80,12 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 - Previous scoped branch: `codex/real-r2-video-once-20261016`, based on
   `cecb5af0`; new owner-approved single real R2 attempt. HEAD200,OPTIONS204;
   QA precheck incorrectly required200 and stopped before PUT. No business retry.
-- Current scoped branch: `codex/r2-video-retry-v2-20261016`, based on `b8858ec4`;
+- Previous scoped branch: `codex/r2-video-retry-v2-20261016`, based on `b8858ec4`;
   new independent one-time test completed:real R2 PUT/playback/bucket Range/delete/
   absence PASS. No code changes,Production access,push or deployment.
+- Current scoped branch: `codex/public-beta-readiness-consolidation-20261016`,
+  based on `4299aa3a`; offline Git/source/migration review and this baseline only.
+  No merge, remote refresh, build replay, test execution or deployment.
 - Recovery Version `1b327fed-be4b-4873-9fcd-6514e014916c`: verified content [R],
   PRE-HARDENING ONLY. Never use it as the default post-Hardening recovery target.
 - `CATALOG_HOLD=ACTIVE`; writers, queues and retries remain held. Current continued
@@ -126,11 +131,183 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | R2 ticket offline repair | PROVEN local SDK build defect repaired; next real attempt READY_FOR_OWNER_APPROVAL only | Node S3 runtime called browser core Symbol as function. Local Workerd reproduced TypeError; consistent browser runtime resolution fixes signing. Same browser/direct Worker ticket endpoints500 ->200. Seven targeted checks PASS plus actual fixed ticket flow PASS; R2 calls0. Image source unchanged; no real upload/playback/delete PASS |
 | New one-time real R2 attempt | BLOCKED before PUT by QA CORS status assertion | New run eaf565c6a919: signing ticket200,HEAD Bucket200,OPTIONS204. Only2/30 R2 requests,PUT0/DELETE0. Full CORS headers were not retained; do not infer a CORS permission failure. QA-only200/204 correction verified offline afterward,not retried online. Local cleanup PASS,real video/playback/Range/delete still NOT_RUN |
 | Real R2 video E2E retry v2 | PASS for approved isolated one-object scope;12/12 current checkpoints PASS | Run a16768d45aed:2028-byte H.264 MP4,PUT200,size HEAD200,Chrome decode/playback,bucket Range206,application DELETE204,HEAD404 twice,local rows0.11/30 controlled requests(work8/22,cleanup3/8). Site proxy Range still FULL200/not forwarded;not a proxy206 or Production parity PASS. Cleanup independently verified |
+| Current release consolidation | BLOCKED for release approval, not a new proven application failure | All seven product-fix commits included in candidate4299aa3a; two new canonical migrations and local-only rate-limit fixture require Production parity review. Group1 remains10/14,UI02 partial,UI03 BLOCKED. No merge/deploy/test replay |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
 Receipt reuse does not authorize execution. Historical time conflicts, 20-second
 timeout FAIL, unknown upload side effects and retained consumed Claims stay unchanged.
+Rows above preserve chronological scoped outcomes; earlier R2 BLOCKED rows are
+historical, not a reversal of the latest isolated R2 PASS.
+
+## Offline Release Readiness Consolidation (2026-10-16)
+
+### Candidate and Unmerged Changes
+
+- RELEASE_CANDIDATE_STATUS=BLOCKED; R2_ISOLATED_INTEGRATION=PASS_ISOLATED.
+  GROUP1_LOCAL_CASES=10/14; RLS_TESTS=16/16_LOCAL_REUSED;
+  BUSINESS_E2E=23_PASS/0_FAIL/1_DEFERRED with the formerly blocked isolated video
+  scope now separately closed. This is not a recomputed full-suite count.
+  UI02=LOCAL_PARTIAL_PASS; UI03=BLOCKED; PRODUCTION_PARITY=UNKNOWN.
+- Fresh local Git checks prove all required fix commits are ancestors of the
+  candidate. No missing post-release fix branch was found. They are not in local
+  main (`f2c7cc0b`, candidate ahead112/behind0) or the locally saved origin/main
+  (`88680a6e`, ahead66/behind0). Counts are before this documentation commit;
+  no fetch was performed and remote Git/deployment state is not newly verified.
+- Product changes relative to released source comprise14 paths, seven commits:
+
+| Included commit | Deployable change and evidence scope |
+| --- | --- |
+| 9161ca71 | Existing destructive-confirmation dialog portal/focus isolation; retain with later comment/admin UI fixes |
+| 3249a954 | comment_reactions least-privilege application grants; local comment/reaction and ordinary-role RLS evidence retained |
+| 466a559b | Sanitized deleted-comment ancestry RPC migration; no deleted-body SELECT policy |
+| 482e7f86 | Comment API/tree placeholders and original authorized ADMIN delete UI; historical targeted19/19 retained |
+| 75275c64 | Original/thumbnail cleanup, shared-reference checks, partial-failure and repeat-delete semantics; unit22/22 and targeted local evidence retained |
+| 850355bc | Reports stable effect dependencies/cancellation; refresh, review and Auth changes retained; bounded idle evidence only |
+| cecb5af0 | Astro build resolver plus scripts/lib/r2-worker-sdk-runtime.mjs; coherent S3 browser-runtime exports; real isolated signing/upload evidence retained |
+
+- Complete14-path deployment delta: astro.config.mjs;
+  scripts/lib/r2-worker-sdk-runtime.mjs; src/components/admin/AdminReportsPanel.tsx;
+  src/components/common/GlassConfirmDialog.tsx; src/components/forum/CommentsSection.tsx;
+  src/lib/i18n/messages/community.ts; src/lib/server/media-cleanup.ts;
+  src/pages/api/admin/forum/media.ts; src/pages/api/admin/forum/posts.ts;
+  src/pages/api/forum/comments.ts; src/pages/api/forum/posts.ts;
+  src/styles/community.css; and the two migrations below. No package/lockfile or
+  wrangler.toml delta. The build helper must be present in the build checkout.
+- R2 local-entry adaptation and OPTIONS200/204 assertion correction are QA-only,
+  not additional Production application fixes. Product/build/migration files
+  are unchanged from cecb5af0 through4299aa3a. Prior real-R2 local build is reused;
+  no new full build, historical suite, cloud request or old executor was run.
+- Other worktrees are not implicit release input. Preserve the six dirty files
+  in D:/OpenGlass Hub (Astro/package/lockfile/PostSocialActions/CommunityLayout/
+  tsconfig), and the two dirty account-security worktree files (summary API/test).
+  Older divergent auth/Pages/planning/recovery branches are not silently merged.
+  The audited candidate had no tracked modifications before this baseline edit.
+
+### Database and Environment Prerequisites
+
+- Two canonical migration additions, in timestamp order, remain pending a live
+  ledger/definition check, NOT proven absent from Production:
+  1. 20261015072723_restore_comment_reaction_application_privileges.sql:
+     anon SELECT(comment_id,user_id); authenticated SELECT(id,comment_id,user_id,
+     reaction_type), INSERT(comment_id,user_id,reaction_type), DELETE. No UPDATE,
+     GRANT ALL or RLS bypass; existing row policies continue to apply.
+  2. 20261015074931_safe_deleted_comment_placeholders.sql:
+     public.deleted_comment_placeholders(uuid,uuid[]) returns ancestry IDs and
+     timestamps only; published/public-scope seed validation, depth32/limit1000,
+     empty search_path, PUBLIC/service_role revoked, anon/authenticated EXECUTE.
+- No new timestamp collision or dependency cycle found between these additions.
+  Existing comments/posts/RLS/can_access_public_circle are prerequisites.
+  The RPC uses CREATE FUNCTION: independently check signature/definition/owner/
+  privileges and absence or already-applied identity before applying, not blind
+  replay. Apply authorized missing migrations before publishing the new comments
+  API; otherwise its ancestry read can fail. Historical migrations contain shared
+  date-prefix versions and use an explicit local replay mirror; do not issue a
+  blanket remote db push/reset or replay previously applied hardening/imports.
+- Additional material parity gap: scripts/qa/run-local-user-e2e.mjs installs
+  consume_forum_rate_limit(uuid,text,text,bigint) AFTER the55-migration local replay.
+  Latest real R2 receipt explicitly says canonicalRpcWasMissing=true. Fixture
+  source is docs/ops/reconciliation/
+  operational-guardrails-rate-limit-r2-unexecuted-proposal.sql, hash
+  10a1848e33097a9bb79e5cb1f1107a86bac6c724b352a13948665b90559011bb.
+  This proposal is NOT a canonical or Production-approved migration. Local PASS
+  therefore does not prove that the Production rate-limit RPC exists or matches.
+  Independently inspect the live signature/definition/owner/EXECUTE grants and
+  ledger prerequisites; if absent/mismatched, obtain separate approval for a
+  minimal formal migration, never deploy the local proposal implicitly.
+- The server-only rate-limit client requires SUPABASE_URL,
+  SUPABASE_SERVICE_ROLE_KEY and RATE_LIMIT_SALT. Its service-role use is confined
+  to the existing rate-limit RPC, not proof of ordinary-user RLS. Fail-closed RPC
+  errors can block forum writes/video tickets. Preserve service_role-only RPC
+  EXECUTE and existing user-authenticated permission checks.
+- Before deployment, value-blind verification must cover correct Production
+  SUPABASE_URL/PUBLIC_SUPABASE_URL, matching anon keys, server-only service key/
+  salt; R2_ACCOUNT_ID/R2_BUCKET_NAME/R2_ACCESS_KEY_ID/R2_SECRET_ACCESS_KEY/
+  R2_PUBLIC_BASE_URL and PUBLIC_R2_PUBLIC_BASE_URL consistency; SITE_ORIGIN;
+  Production Auth/Turnstile modes/sitekeys/secrets and approved moderation policy.
+  No new environment variable is introduced by these fixes. Do not copy local
+  AUTH_CAPTCHA_MODE=off, official test keys, local_only_safe moderation, local
+  credentials or the isolated R2 bucket into Production. Local consent records
+  were seeded, not proof of the complete real consent UI or provider behavior.
+
+### Remaining Acceptance and Range Decision
+
+- Four original cases remain open, not rewritten into simpler PASS:
+  AUTH-01 real Production Sitekey/CAPTCHA and rejection behavior;
+  UI-01 trusted Cloudflare country versus language precedence;
+  UI-02 remaining complete media/mobile/keyboard/accessibility assertions;
+  UI-03 unresolved local workerd disconnect after the original navigation prefix.
+  UI03 history remains BLOCKED/UNKNOWN; no new reproduction or guessed runtime fix.
+- Admin page HTTP200 with a denied UI and protected API403 are separate valid
+  contract layers. Do not turn the old HTTP500 into a valid denial or assume it
+  occurs in Production. A candidate deployment smoke may independently establish
+  the deployed route behavior; it cannot erase the failed local receipt.
+- Source review confirms streamTrustedMediaUrl does not forward Range and emits
+  full200, without Content-Range/Accept-Ranges. However forum-media.ts prioritizes
+  direct R2 public URLs for tmp/ video paths even with publicProxy=true, and
+  PostMediaGallery renders displayUrl. Thus not every video UI uses that proxy.
+  Documentation describing proxy-only delivery is not an exhaustive path claim.
+- WEBSITE_PROXY_RANGE_STATUS=FULL200_NO_RANGE_FORWARDING. The bucket206 and tiny
+  MP4 playback are proven; long-video seek/performance is NOT verified. No reviewed
+  MVP requirement explicitly makes proxy206 a first-Beta gate. HTTP200 alone is
+  not proof of broken seek or a new P1. No media change is justified by this audit.
+  Retain it as a disclosed delivery limitation, not an added release gate. Close
+  the remaining original UI02 assertions on the actual delivery path; if their
+  accepted scope requires seek, that behavior needs evidence before claiming it
+  closed. Do not invent a new large-video/Range test campaign here.
+- Auth08/Admin04/other closed local cases remain their original Boundary2 subsets,
+  not complete production/full-case PASS. Original16 RLS mapping contains anon6,
+  A5 and B5 reads; preserve that exact matrix, not16 newly invented authenticated
+  reads. Admin role/API denials additionally require their own original evidence.
+- Editing remains DEFERRED_PUBLIC_BETA, not PASS. Dedicated Worker containment,
+  Node SDK delivery, exact dynamic-Origin inventories and v11-v19 control-window
+  engineering are stopped. GROUP_2/3 and full E_VERIFY are not authorized/complete;
+  isolated business evidence is reusable only where the original assertions match.
+
+### Minimum Release Sequence
+
+1. Obtain one independent, bounded, read-only pre-release verification approval
+   covering Production migration ledger/RPC parity, necessary configuration
+   presence/target identity and current version. No raw secrets or database writes.
+   Resolve the rate-limit RPC gap by a separately reviewed formal migration only
+   if the existing Production implementation does not already satisfy the contract.
+2. Approve integration of the already consolidated seven-fix/14-path candidate
+   into the release branch; do not merge every historic QA branch or include other
+   dirty worktrees. Preserve historical evidence outside the deployed payload.
+   No merge/push/deploy was performed here. If final source differs, run one clean
+   release build and only affected targeted checks, not the historical full suite.
+3. Close remaining UI02 assertions in the existing isolated environment and make
+   the UI03 unresolved-evidence release decision explicit. Confirm the schema plan,
+   zero-cost/current configuration, and a post-Hardening compatible recovery target.
+   Never default rollback to the pre-Hardening recovery version/Version151.
+4. With separate approval, apply only missing approved migrations and deploy the
+   frozen candidate. Independently authorize bounded candidate-specific Production
+   checks: pre/post version; A/B/ADMIN login/CAPTCHA/session/refresh/logout plus
+   original negative Auth; original16 RLS matrix and identity/API denials; comment
+   ancestry/reaction/admin UI; report list/denial/idle path; trusted-country behavior
+   and remaining UI/media assertions. Any stateful comment/media smoke requires
+   explicit disposable-data/write/cleanup approval, not implied read authorization.
+   Reuse anonymous43/43 and prior proofs; do not rerun all43 or isolated R2 tests.
+5. Record remaining original GROUP_2/3 release obligations or an explicit owner
+   scope decision; they are not waived by local PASS. Public Beta GO is a separate
+   decision after deployed-candidate evidence and cleanup, never implied by merge.
+
+- Critical release gaps: approved integration/schema plan (including rate-limit
+  RPC parity), remaining four case requirements/UI03 decision, current environment
+  and post-Hardening recovery checks, and actual deployed-candidate Auth/RLS/smoke.
+  No additional application defect was proven in this consolidation.
+- This turn's checks: required commit ancestry,14-path diff, new migration order/
+  dependency review, unchanged product tree since signing fix, node --check for
+  Astro config/build resolver, and product-delta git diff --check. All completed
+  offline; historical test results reused explicitly, not reported as new runs.
+- NEXT_SINGLE_ACTION: owner separately approve the bounded read-only Production
+  ledger/rate-limit-RPC/configuration/version pre-release verification above.
+  Test bucket Public Development URL disable remains an owner cleanup reminder;
+  its current dashboard state is UNKNOWN and no setting was changed here.
+- PRODUCTION_REQUESTS=0; PRODUCTION_WRITES=0; THIRD_PARTY_LIVE_REQUESTS=0;
+  MAX_ADDITIONAL_COST_USD=0; CATALOG_HOLD=ACTIVE;
+  GROUP_2=NOT_AUTHORIZED; GROUP_3=NOT_AUTHORIZED;
+  PUBLIC_BETA_GO=NOT_AUTHORIZED. Historical authorizations/Claims unchanged.
 
 ## Real R2 Video E2E Retry v2 Completed (2026-10-16)
 
