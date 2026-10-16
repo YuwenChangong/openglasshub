@@ -12,18 +12,20 @@ import { verifyLocalCatalog } from './local-rls-assertions.mjs';
 
 export async function runCases({s,root,environment,command,sql}) {
   const ticketOffline=process.env.OGH_E2E_R2_TICKET_OFFLINE==='1';
+  const migrationReconciliation=process.env.OGH_E2E_MIGRATION_RECONCILIATION==='1';
   const realR2=ticketOffline||process.env.OGH_E2E_REAL_R2==='1';
   const commentDelete=process.env.OGH_E2E_COMMENT_DELETE==='1';
   const thumbnail=process.env.OGH_E2E_THUMBNAIL==='1';
   const finalScope=process.env.OGH_E2E_FINAL_SCOPE==='1';
   const continuation=process.env.OGH_E2E_CONTINUATION==='1';
-  const commentRegression=realR2||finalScope||thumbnail||continuation||commentDelete||process.env.OGH_E2E_COMMENT_REGRESSION==='1';
+  const commentRegression=migrationReconciliation||realR2||finalScope||thumbnail||continuation||commentDelete||process.env.OGH_E2E_COMMENT_REGRESSION==='1';
+  if(migrationReconciliation&&realR2)throw Error('LOCAL_MIGRATION_SCOPE_FORBIDS_REAL_R2');
   const out = path.join(root,'output/playwright/local-supabase-e2e',s.runId);
   await fs.mkdir(out,{recursive:true});
   const report = {environment:'DISPOSABLE_LOCAL_SUPABASE_REAL_ASTRO_REAL_AUTH',runId:s.runId,results:[],group1:[],
     productionRequests:0,productionWrites:0,productionAuthOperations:0,productionDeployments:0,externalRequestsBlocked:0,
     captcha:'LOCAL_OFF_ONLY_NOT_PRODUCTION_CAPTCHA',databaseIsolation:'PASS',migrationCount:s.migrations,cleanup:'NOT_RUN',
-    localRateLimitFixture:{canonicalRpcWasMissing:s.rateLimitWasMissingFromCanonicalMigrations??false,source:s.rateLimitFixtureSha256??null,productionParity:'NOT_CLAIMED'}};
+    localRateLimitFixture:{canonicalRpcWasMissing:s.rateLimitWasMissingFromCanonicalMigrations??false,source:s.rateLimitFixtureSha256??null,baseline:s.rateLimitBaseline??null,productionParity:'NOT_CLAIMED'}};
   const previousId=process.env.OGH_E2E_REUSE_RUN;
   const previous=previousId&&/^[a-f0-9]{12}$/.test(previousId)?JSON.parse(await fs.readFile(path.join(root,'output/playwright/local-supabase-e2e',previousId,'RESULTS_SAFE.json'),'utf8')):null;
   const only=process.env.OGH_E2E_ONLY?.split(',');
@@ -215,9 +217,9 @@ export async function runCases({s,root,environment,command,sql}) {
     },'auth');
     if(commentRegression) {
       for(const actor of ['A','B','ADMIN']) sessions[actor]=await currentSession(pages[actor]);
-      const module=await import(realR2?'./local-real-r2-cases.mjs':finalScope?'./local-final-scope-cases.mjs':thumbnail?'./local-thumbnail-regression.mjs':continuation?'./local-business-continuation.mjs':commentDelete?'./local-comment-delete-regression.mjs':'./local-comment-regression.mjs');
-      const run=ticketOffline?module.runOfflineTicketCase:realR2?module.runRealR2Cases:finalScope?module.runFinalScope:thumbnail?module.runThumbnailRegression:continuation?module.runContinuation:module.runCommentRegression;
-      await run({s,root,out,sql,check,report,localFetch,readTable,dbCount,browserApi,responseFor,goto,pages,contexts,newContext,postId,circleId,circleSlug,sessions,currentSession,storageKey,origin,localFaults,r2,worker});
+      const module=await import(migrationReconciliation?'./local-release-migration-regression.mjs':realR2?'./local-real-r2-cases.mjs':finalScope?'./local-final-scope-cases.mjs':thumbnail?'./local-thumbnail-regression.mjs':continuation?'./local-business-continuation.mjs':commentDelete?'./local-comment-delete-regression.mjs':'./local-comment-regression.mjs');
+      const run=migrationReconciliation?module.runMigrationReconciliation:ticketOffline?module.runOfflineTicketCase:realR2?module.runRealR2Cases:finalScope?module.runFinalScope:thumbnail?module.runThumbnailRegression:continuation?module.runContinuation:module.runCommentRegression;
+      await run({s,root,out,environment,command,sql,check,report,localFetch,readTable,dbCount,browserApi,responseFor,goto,pages,contexts,newContext,postId,circleId,circleSlug,sessions,currentSession,storageKey,origin,localFaults,r2,worker});
       return {failed:report.results.some(x=>x.status==='FAIL')||Boolean(report.environmentBlocker)};
     }
     for(const actor of ['A','B','ADMIN']) await check('ADMIN_API_'+actor,async()=>{

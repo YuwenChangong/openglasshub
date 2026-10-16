@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
 import path from 'node:path';
 
 export async function runCommentRegression(h) {
@@ -12,10 +11,9 @@ export async function runCommentRegression(h) {
   const q=v=>"'"+String(v).replaceAll("'","''")+"'";
   const scalar=async query=>(await sql(s,query)).stdout.trim().split(/\r?\n/)[0];
   const seed=async(actor,body,parent=null,target=postId,status='published',moderation='published')=>scalar(`insert into public.comments(post_id,author_id,parent_id,body,status,moderation_status) values(${q(target)},${q(s.actors[actor].id)},${parent?q(parent):'null'},${q(body)},${q(status)},${q(moderation)}) returning id;`);
-  const migration='20261015074931_safe_deleted_comment_placeholders.sql';
   // Only the fresh owned container established by the shared local lifecycle.
   const installed=await scalar("select count(*) from pg_proc where proname='deleted_comment_placeholders';");
-  if(installed==='0') await sql(s,await fs.readFile(path.join(root,'supabase/migrations',migration),'utf8'));
+  assert.equal(installed,'1','FORMAL_COMMENT_PLACEHOLDER_MIGRATION_REQUIRED');
   await sql(s,"NOTIFY pgrst, 'reload schema';");
   const rootBody='Deleted-body-sentinel-'+s.runId;
   const parent=await seed('A',rootBody),middle=await seed('B','Local middle reply',parent);

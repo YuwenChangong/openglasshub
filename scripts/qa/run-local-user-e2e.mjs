@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
-import { randomBytes, createHash } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { parse, stringify } from 'smol-toml';
 import { createClient } from '@supabase/supabase-js';
@@ -125,15 +125,11 @@ async function prepare() {
     const inventory = await buildRepositoryInventory({root});
     const catalog = await prepareCanonicalCatalogImport({root,publication:{blocked_count:0,candidates:inventory.identities.map(i=>({slug:i.slug,brand:i.brandKey,decision:i.slug==='xreal-air'?'PUBLISHED':'NOT_PUBLISHED'}))}});
     await sql(s,catalog.sql); await sql(s,catalog.activationSql); await sql(s,catalog.hardeningSql);
-    stage = 'LOCAL_RATE_LIMIT_FIXTURE';
+    stage = 'LOCAL_FORMAL_RATE_LIMIT_BASELINE';
     const rpc=(await sql(s,"select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='consume_forum_rate_limit';")).stdout.trim();
-    if(rpc!=='0')throw Error('LOCAL_RATE_LIMIT_FIXTURE_ALREADY_EXISTS');
-    const proposal=(await command('git',['cat-file','blob','HEAD:docs/ops/reconciliation/operational-guardrails-rate-limit-r2-unexecuted-proposal.sql'])).stdout;
-    s.rateLimitFixtureSha256=createHash('sha256').update(proposal).digest('hex');
-    if(s.rateLimitFixtureSha256!=='10a1848e33097a9bb79e5cb1f1107a86bac6c724b352a13948665b90559011bb')throw Error('LOCAL_RATE_LIMIT_FIXTURE_IDENTITY');
-    // Existing R3 local-test SQL, not a canonical migration or Production change.
-    await sql(s,proposal+"\nNOTIFY pgrst, 'reload schema';");
-    s.rateLimitWasMissingFromCanonicalMigrations=true;
+    if(rpc!=='1')throw Error('LOCAL_FORMAL_RATE_LIMIT_BASELINE_MISSING');
+    s.rateLimitWasMissingFromCanonicalMigrations=false;
+    s.rateLimitBaseline='FORMAL_MIGRATION_ONLY';
     s.migrations = mirror.migrationCount;
     await save(s); await fs.writeFile(pointer,JSON.stringify({runId}));
     console.log(JSON.stringify({localSupabase:'RUNNING',databaseIsolation:'PASS',accounts:['A_READY','B_READY','ADMIN_READY'],migrations:s.migrations,credentials:'CURRENT_USER_DPAPI_OWNER_SYSTEM_DACL',productionRequests:0}));
