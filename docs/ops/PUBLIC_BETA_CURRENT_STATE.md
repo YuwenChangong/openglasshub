@@ -1,12 +1,227 @@
 # Public Beta Current State
 
-Authoritative release/progress baseline. Updated 2026-10-16 by owner-approved
-controlled local main fast-forward and post-merge build/type-gate verification.
-This task Production requests/writes/deployments0. Earlier separately approved
-read-only audit remains historical evidence, not permission for another live read.
+Authoritative release/progress baseline. Updated 2026-10-19 by owner-approved
+parallel Public Beta work on a dedicated staged-integration feature branch.
+This task Production connections/writes/migrations/deployments0. Public official
+documentation and one GitHub Git ref query were used; no provider-project API or
+database was contacted. No backup/restore, historical QA, push, protected merge
+or GO was performed. The recovery review remains paused, not approved.
+Earlier separately approved audits remain historical evidence,not reusable grants.
 Read this first for every task. This document is not an authorization or GO.
 `VERIFIED` is scoped historical evidence, not proof of unchanged live state now.
 Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
+
+## Public Beta Parallel Fast Track (2026-10-19, Current Scoped Result)
+
+One unfinished task completed: prepare the already-reviewed six-path staged
+release integration as a dedicated feature candidate, without merging main or
+executing any SQL. This supersedes only the old next-task recommendation; all
+historical evidence and frozen recovery contracts remain unchanged.
+
+- Root D:/OpenGlass Hub is still on its separate dirty feature branch at
+  `80b59eeb732953489dfa9a395d9fbd23be654a8b`; its user changes were not touched.
+- Local main was freshly checked at
+  `fedf5627a7cd2a28a6f5c0732c333b4e2fad56bb`, not assumed from an old receipt.
+  Protected review checkout remains clean at
+  `f957a9ef0553ff2e26530c1d5f7515b587bd53e5`.
+- Dedicated branch: `codex/public-beta-staged-integration-20261019`, based on
+  that local main, in the managed `public-beta-staged-integration` worktree.
+  The migration, two scripts, existing execution Packet and its safe JSON are
+  exact reviewed Git blobs from f957a9ef; no SQL or executable semantics changed.
+  This baseline carries forward the latest 44bd1e7a progress before this update.
+- Integration evidence:
+  `docs/ops/reconciliation/public-beta-staged-integration-safe.json`.
+  10/10 offline integration checks and 2/2 script syntax checks PASS. All57
+  migration filenames are recognized, all4 canonical and executed-body hashes
+  match, the dependency order is alignment -> grants -> placeholders -> quota
+  adoption, and unknown SQL inventory is rejected without executing it.
+  All56 main migration blobs and application/Auth/media/build/dependency source
+  are unchanged. No 46-case database suite, full RLS, Auth, browser, R2 or build
+  replay was needed or performed for this exact-source relocation.
+- This is a local integration candidate, not an authorized Production executor
+  invocation, completed main merge, remote release or deployed migration.
+  Main still has56 migrations; the new branch has57. Future main integration
+  requires its separate owner approval, and all Production gates remain closed.
+
+### Recovery Review And Release Boundaries
+
+Owner has separately chosen the scoped Application Recovery v1 alternative.
+Its existing files and recovery-gate proposal were not modified here. The final
+independent delta review is PENDING_TOOL_USAGE_LIMIT, not APPROVED. The restricted
+reviewer was not called. Local synthetic recovery10/10 unit checks and13 final
+checkpoints are historical synthetic evidence only; actual GoTrue/configuration,
+unclassified settings effects and external object/offsite coverage remain open.
+DATABASE_BACKUP_RECOVERABILITY=NOT_VERIFIED. Frozen V2.3 remains unchanged.
+
+The seven product fixes, anonymous43/43, local RLS16/16, business23 scoped PASS,
+isolated R2 PASS and historical build/ratchet evidence are reused, not rerun or
+upgraded to Production PASS. GROUP1_LOCAL_CASES=10/14. AUTH-01 and UI-01 require
+their original Production evidence; UI-02 remains LOCAL_PARTIAL_PASS; UI-03 stays
+BLOCKED/UNKNOWN with no additional workerd investigation. Editing remains deferred.
+
+### Push Boundary And Single Next Action
+
+The owner permits feature-branch push but forbids deployments and added costs.
+One Git ref read confirmed remote main88680a6e and no existing branch at this new
+feature ref. There are no tracked .github workflows in the local main tree and
+no active local pre-push hook. That does NOT establish absence of external
+Cloudflare Workers build triggers or prove a future push cannot deploy or consume
+paid build resources. Current branch trigger configuration was not queried.
+
+Pages documents a commit-message deployment skip, but that is not proof of the
+actual Workers trigger configuration. No CI-skip marker, CI weakening, cloud
+configuration change or unsafe push was used. PUSH=NOT_EXECUTED until the owner
+confirms this exact feature branch is excluded from automatic build/deployment
+hooks and cannot create added costs. Do not repush main or force any ref.
+
+NEXT_SINGLE_ACTION: obtain the exact feature-branch auto-build/deployment exclusion
+and zero-added-cost confirmation, then push only the verified isolated feature
+commit under the existing conditional push authorization. Do not activate the
+recovery gate, merge main, run Production phases, deploy or grant Beta GO.
+
+PRODUCTION_WRITES=0;PRODUCTION_MIGRATIONS=0;DEPLOYMENTS=0;
+CATALOG_HOLD=ACTIVE;PUBLIC_BETA_GO=NOT_AUTHORIZED.
+
+## Public Beta Critical Path Acceleration (2026-10-17, Historical Offline Decision)
+
+This section supersedes earlier next-action planning, not historical receipts.
+It is not a recovery Packet amendment, an execution approval, or a new baseline.
+All existing source-applicable QA evidence is reused without replay.
+
+### Current Identity And Scope
+
+- Protected release checkout remains clean at
+  `f957a9ef0553ff2e26530c1d5f7515b587bd53e5`, branch
+  `codex/pre-migration-compatibility-recovery-20261016`.
+- Local main remains `fedf5627a7cd2a28a6f5c0732c333b4e2fad56bb`.
+  Its included product/typechecked candidate is
+  `1de74e199244a19a3a3aa425f51005340c2f1658`. Seven product-fix ancestors
+  9161ca71/3249a954/466a559b/482e7f86/75275c64/850355bc/cecb5af0 all match.
+- No application, dependency, lockfile or build-source delta exists between that
+  tested candidate and protected release HEAD. Its retained local build and
+  diagnostic-ratchet PASS remain applicable, not newly executed. Raw Astro still
+  has 56 retained diagnostics; do not call this a zero-error compiler PASS.
+- Protected release versus main differs in six reviewed paths only: this baseline,
+  the existing Production migration Packet and safe JSON, two release-phase
+  scripts, and migration20261016090712. Inventory57; main56. New migration/scripts
+  remain unmerged. Other worktrees are not implicit release inputs.
+- Root D:/OpenGlass Hub is on its separate feature branch at80b59eeb, with6 tracked
+  changes and148 untracked entries. The old product QA checkout has500 untracked
+  entries. Neither was edited, cleaned, rebased or switched by this task.
+- This documentation-only change lives on the independent
+  `codex/public-beta-critical-path-20261017` branch. Its eventual commit is NOT a
+  replacement for the frozen recovery source HEAD. No protected/main integration.
+
+### Recovery Alternatives And Decision
+
+Official documentation was checked on2026-10-17. The Markdown changelog endpoint
+was unsupported by the reader; the official HTML changelog was used instead.
+No database, management API, login, export, restore or resource purchase occurred.
+
+| Path | Coverage and evidence | Decision |
+| --- | --- | --- |
+| Existing bounded native PostgreSQL export inside frozen encrypted controller | Packet explicitly includes public/auth/storage/supabase_migrations/extensions; roles/memberships separately, owners/GRANT/default ACL/RLS/functions/triggers, dependency manifest and shared-snapshot table counts. Real current complete capture and restore have NOT passed. | Shortest evidence-supported path: reuse, do not redesign or silently switch. |
+| Supabase-managed restore | Owner explicitly confirmed Free, scheduled backups not included, PITR disabled and no verified platform restore. Official daily-backup eligibility is paid-plan based; enabling PITR is paid. No current usable platform recovery evidence. | Not an available zero-new-cost substitute on the attested plan. No upgrade. |
+| Official CLI or standalone pg_dump/pg_restore | Official CLI defaults exclude managed schemas and omit data/roles; history and managed-schema customizations need explicit handling. Native pg_dump can select the required schemas and snapshot, but roles are separate and dependency closure still matters. | Valid tools, not a drop-in acceptance bypass. The current Packet already uses native tools; switching the controller or coverage requires an explicit Packet amendment, review and fresh approval. |
+
+For any proposed substitute, require the SAME tested coverage, strict TLS,
+credential isolation, encryption/authenticated key recovery, resource/deadline/
+zero-retry limits, isolated roles-first restore, exact owners/ACL/RLS/dependency
+and data/history checks. Do not copy public documentation examples that expose a
+password in argv, write plaintext dumps, remove owners/role grants, or skip failed
+objects into this contract. No substitute meeting all frozen requirements has
+already passed; a different launcher would add unverified work, not remove it.
+
+Scope limits stay explicit: Storage/R2 object bytes, hosted Auth/provider/SMTP/JWT
+configuration and external services are excluded; role password hashes are omitted.
+Roles versus database snapshot and sequence advancement have documented consistency
+limits. Scoped logical database reconstruction is not PITR or full hosted-project
+disaster recovery. Extensions must be available in the pinned local image; no pull,
+upgrade, installation or relaxed version/locale/role check is approved.
+
+Frozen Adapter execution SHA256 freshly matched
+`18c2762c1cf0ff72b296a69d1236afecd9a43a735dc026ce8323216d0f579516`;
+Packet binding freshly matched
+`2fac9b410c1740cc696c73a493fcd4022abec0e2247304d051c53c8e73ecb554`.
+All10 binding inputs matched the existing safe receipt. Neither file was changed.
+The exact-host synthetic28P01 shutdown PASS is scoped synthetic evidence only;
+historical Production residual and authentication causes remain UNKNOWN. Real
+password validity remains NOT_VERIFIED_OFFLINE, despite owner-confirmed provenance.
+Prior encrypted historical material whose restore failed is not a usable verified
+current backup. No new complete Production capture or isolated restore is available.
+
+Owner has now accepted only the classification of the3 synthetic artifacts and
+explicitly required retention: DELETION_AUTHORIZED=false,
+CLEANUP_STATUS=DEFERRED_POLICY_RESTRICTION. Do not make another deletion attempt,
+reopen that completed review, or treat those artifacts as a real database backup.
+Their retained state is not itself evidence of a new process-lifecycle defect.
+Actual future Job residuals/cleanup failures must still fail closed.
+
+### Evidence-Scoped P0 Matrix
+
+VERIFIED_PASS below means only the stated local/isolated assertions backed by the
+named retained evidence and unchanged applicable source, NOT current Production
+PASS or a newly run test. Uncovered assertions remain NOT_VERIFIED.
+
+| P0 area | Classification and exact acceptance scope | Evidence / remaining condition |
+| --- | --- | --- |
+| Authentication and sessions | VERIFIED_PASS local13/13; NOT_VERIFIED Production | Local summary and later formal migration26/26; real Production CAPTCHA, provider/session behavior still required. |
+| RLS and authorization | VERIFIED_PASS selected local16/16 (anon6,A5,B5), private rows3/3 and targeted role denials; NOT_VERIFIED Production | COMMENT_REACTIONS_SUMMARY_SAFE.json plus formal-only and reaction-policy regression. Never claim16 newly invented authenticated reads or global policy coverage. |
+| Posting, Feed, circles and notification interactions | VERIFIED_PASS selected local business assertions; NOT_VERIFIED exhaustive scope | FORUM_MVP_CONTINUATION_REVIEW_SAFE.md and THUMBNAIL_CLEANUP_SUMMARY_SAFE.json; cumulative23 scoped passes, not a newly combined full-suite total. |
+| Comments/replies/deletion/moderation | VERIFIED_PASS targeted19/19, later formal-schema checks | COMMENT_DELETE_SUMMARY_SAFE.json and final formal-only run6aabb1dcc514; deleted content privacy/replies and admin denial retained. |
+| Reports/moderation | VERIFIED_PASS report submission, A/B data isolation, admin actions and40,071ms bounded idle observation; VERIFIED_FAIL historical UI03 target | REPORTS_UI03_500_SUMMARY_SAFE.json and WORKERD_FINAL_SUMMARY_SAFE.json. Original prefixed B GET /admin/reports/500 persists as unresolved evidence; no proven application root cause. |
+| Media | VERIFIED_PASS local image/thumbnail cleanup and real isolated2028-byte H.264 R2 upload/playback/delete/absence | Real R2 run a16768d45aed and thumbnail review. Bucket Range206 verified; website proxy full200, large-video seeking/performance NOT_VERIFIED, not a proven P0 defect. |
+| Navigation and desktop/390px/430px usability | VERIFIED_PASS retained targeted navigation/layout assertions; NOT_VERIFIED full UI02 | Forum continuation and later typecheck browser contracts. Remaining complete media/keyboard/accessibility contract is not closed by partial screenshots. |
+| Database release/runtime | NOT_VERIFIED actual Production parity; VERIFIED_FAIL historical local HTTP500 only | Four-stage migration Packet, local46/46 plus16 old-source contract checks; neither is a Production run. |
+| Published post/comment editor | INTENTIONALLY_OUT_OF_BETA_SCOPE | Owner decision DEFERRED_PUBLIC_BETA; not PASS, no editor code or permission removal. |
+
+No newly proven, low-risk offline application P0 correction is supported by this
+review. Do not invent a patch for the UI03 disconnect, rename it a valid denial,
+or turn proxy200/retained compiler diagnostics into an unproven new release bug.
+P0_FIX_IMPLEMENTED=NONE. Only this existing baseline changes; no test framework,
+new feature, package upgrade, Product Catalog or website design change.
+
+### Minimum Dependencies, Tests And Stop Conditions
+
+| Remaining blocker / evidence | Minimum action and code need | Dependency / Go-No-Go |
+| --- | --- | --- |
+| No current accepted Production backup/restore; real credential validity unverified | Fresh separate owner authorization for the existing frozen read-only export/encrypted isolated restore ONCE, not another synthetic suite. No code change established. Recheck identity, resources, fee headroom, all11 gates and time immediately before execution; local hidden input only. | No Production operation under this task. Actual export, independent decryption/key recovery, complete restore/security/data/history comparison and cleanup must pass; any failure/residual stops with0 retries. |
+| New policy alignment and release scripts not in main; four pending phases | Separately review/approve exact six-path integration. No new migration logic required. Preserve all57 SQL and four hashes below, phase script and evidence; build/ratchet only if source changes or final release artifact requires them. | Offline integration review can progress independently of recovery. Do not alter the frozen recovery checkout/HEAD or merge under this task. Production migration waits for accepted recovery AND separately approved integration/execution. |
+| Production metadata is historical, migrations not executed | Separate bounded precondition/drift check and approval of four exact phases using existing controlled module, not root db push. No code change established. | Each phase verifies ledger/object before/after and commits SQL+real registration together; quota remains non-overwrite. Unknown commit/drift/cleanup/fee risk stops; no automatic retry/next phase. |
+| Candidate not deployed; environment/parity unknown | Separate approved source/build/secret-name-target review, push/deployment and post-Hardening recovery selection. Do not copy local CAPTCHA-off/moderation/test-bucket settings. | Database prerequisites before candidate deployment. A deployment failure is not permission to undo safe schema or use pre-Hardening Version151. Bind final Git/build/Worker version, keep Catalog held. |
+| Four original cases open and no current deployed-candidate acceptance | Independent bounded Production acceptance of AUTH-01, UI-01, remaining UI-02/UI-03 plus original identity/session/RLS and changed-function smoke; writes need exact disposable-data/cleanup permission. No known offline code patch. | UI03 historical failure remains BLOCKED; deploy-target normal-user denial/admin functionality must actually pass. A failed500 cannot be waived as403. Full UI02 must close; no local PASS substituted. |
+| Group2/3/full release obligations not independently accepted | Owner explicitly resolve original required release scope, then a separate Beta decision on verified evidence. No scope cut or feature disabling here. | No implicit waiver from local10/14, isolated R2 or this report; Catalog/Beta GO remain withheld. |
+
+Reviewed explicit Production order and fresh canonical LF hashes (all4 MATCH):
+1. Phase0:20261016090712 alignment,9aa23de3d7ef0f81d235376ca963e7930007455d353a32b6e9ef475a2943bd5b.
+2. Phase1:20261015072723 grants,df6935f6290345421b86b6917badaa4c1ea969cbb84c8a5d6b5d29ea359ec733.
+3. Phase2:20261015074931 placeholders,74e5d378c2cca962f5ca3ec60f2903404b514bede2644c10e230d41862b68afe.
+4. Phase3:20261016061618 quota adoption,f860daa2a07ff1bf0c53a5497894208a6bba8424bd5a17f37d6849cf4d38ad8e.
+Do not sort Production phases by migration timestamp. The existing Packet's exact
+body hashes, rollback/unknown-commit handling and timeout limits stay authoritative.
+
+Immediate offline work is complete: identities/ancestry/source applicability,
+four SQL hashes, ten recovery binding inputs and this dependency decision.
+No full QA, build, compiler, database, recovery, media, browser or synthetic test
+was rerun. Documentation-only validation is diff/whitespace and exact path review.
+Build and ratchet remain HISTORICAL_PASS_SOURCE_APPLICABLE_NOT_RERUN; raw56 retained.
+
+NEXT_SINGLE_ACTION: owner separately authorize one current-instance execution of
+the existing frozen read-only encrypted backup and isolated restore, after fresh
+instance-bound time/resource/cost/credential-input admissions. This is a
+recommendation, not a generated approval/instance/GO. Stop adding recovery tooling;
+no mechanism change or repeated completed test is justified by current evidence.
+
+Official sources consulted (public documentation only):
+- [Supabase backups](https://supabase.com/docs/guides/platform/backups)
+- [CLI dump reference](https://supabase.com/docs/reference/cli/supabase-db-dump)
+- [CLI restore and managed-schema/history considerations](https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore)
+- [Supabase changelog](https://supabase.com/changelog)
+- [PostgreSQL17 pg_dump](https://www.postgresql.org/docs/17/app-pgdump.html)
+
+PRODUCTION_CONNECTIONS=0;PRODUCTION_WRITES=0;PRODUCTION_MIGRATIONS=0;
+PRODUCTION_DEPLOYMENTS=0;PUSH=NOT_EXECUTED;PROTECTED_MERGE=NOT_EXECUTED;
+CATALOG_HOLD=ACTIVE;MAX_ADDITIONAL_COST_USD=0;PUBLIC_BETA_GO=NOT_AUTHORIZED.
 
 ## Source and Release Identity
 
@@ -17,7 +232,10 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
   Deployment ID `e8481d68-d2d5-473b-8b0c-b82b8fa33fc3`. The live version matches
   historical v11/deployment evidence; this is not a fresh application smoke.
   Current version summary has no source-Commit annotation. Released source/build
-  mapping above is reused historical evidence, not a newly returned Git SHA.
+  mapping above is now rechecked against the frozen A_DEPLOY receipt hash chain,
+  not a newly returned Git SHA. See final compatibility/recovery review below.
+  Build-artifact/source byte equivalence is still UNKNOWN;no continuous live-state
+  observation or new application smoke is claimed.
 - Audited local release candidate: `4299aa3afa45dc8c30ebbe2e63a17fcd6bbb0524`.
   Latest tested formal-migration candidate: `9bef6e8a`; same seven product fixes,
   new non-overwriting quota adoption migration. Its type-gate failure is now
@@ -105,14 +323,24 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 - Previous scoped branch: `codex/release-candidate-typecheck-fix-20261016`, based on
   `3323cb85`; minimal owner-approved type corrections and directly affected local
   checks only. READY_FOR_OWNER_MERGE_APPROVAL,not merged/deployed or Beta GO.
-- Current integration checkout: `C:/Temp/openglass-product-detail-main-release-v1`,
-  branch `main`. Owner-approved fast-forward moved exact main HEAD from
+- Integration checkout: `C:/Temp/openglass-product-detail-main-release-v1`.
+  Owner-approved fast-forward on `main` moved exact main HEAD from
   `f2c7cc0bde73380269f62c35eec4d542c93a5dca` to candidate
   `1de74e199244a19a3a3aa425f51005340c2f1658` (tree
   `89fd9da7592210e1e7a9ae337c409e43d31379ea`). This entry is committed afterward
   as a documentation-only main commit; its Git commit is the final local main tip.
   The validated application/migration source remains exactly the candidate above.
   Candidate branch/worktree and historical evidence remain preserved,not rewritten.
+- Previous offline preparation branch in that checkout:
+  `codex/production-migration-packet-v1-20261016`,based on exact local main
+  `fedf5627a7cd2a28a6f5c0732c333b4e2fad56bb`. Main stays unchanged at that SHA.
+  Earlier offline task added the blocked Packet;the current scoped read-only
+  preflight revises only that Packet and this baseline. Main is still unchanged.
+- Current scoped implementation branch:
+  `codex/production-release-blockers-offline-20261016`,based on preflight
+  `04490c818262e00cf32c6d566585379bf9909ef6`. One guarded policy migration and
+  a minimal adapter for the existing pg channel,plus its focused local test.
+  No main mutation or Production entry-point authorization.
 - Recovery Version `1b327fed-be4b-4873-9fcd-6514e014916c`: verified content [R],
   PRE-HARDENING ONLY. Never use it as the default post-Hardening recovery target.
 - `CATALOG_HOLD=ACTIVE`; writers, queues and retries remain held. Current continued
@@ -163,6 +391,7 @@ Missing/uncertain outcomes remain `UNKNOWN`; denied execution remains `BLOCKED`.
 | Formal migration reconciliation |56 formal migrations replayed;26/26 focused local checks and3/3 static tests PASS | No extra quota-proposal installation. Existing-object normal migration adoption preserves OID/source/ACL/owner; security/ACL/overload/comment-boundary drift fails; interrupted create/grant rolls back. Astro local build PASS, existing type ratchet FAIL; merge BLOCKED |
 | Candidate type gate repair | Original ratchet PASS;244 errors reduced to56 frozen historical errors;11/11 focused scripts PASS; local build PASS | No gate/baseline/dependency/strictness changes; all56 migration blobs and7 product fixes preserved. READY_FOR_OWNER_MERGE_APPROVAL only; Production/UI03 obligations unchanged |
 | Controlled local main merge | PASS,FAST_FORWARD to exact1de74e19 candidate; post-merge ratchet/build PASS | Main had no exclusive commits and a clean worktree. Seven fix ancestors/56 migrations preserved. Documentation-only closure commit follows; no push,Production migration,deployment or Beta GO |
+| Production migration execution Packet v1 | READY_FOR_OWNER_REVIEW only;BLOCKED_FOR_EXECUTION pending recovery evidence | Original3 hashes/new alignment unchanged. Frozen A_DEPLOY chain identifies version152 source;16 focused old-query/4-phase local checks PASS. Artifact equality UNKNOWN. Separate main integration needed;backup/restore evidence still missing. No new Production reads |
 | GROUP_2 QA mutations | BLOCKED / NOT_AUTHORIZED | Real stateful acceptance incomplete; media/cleanup controls and cost guarantees unresolved |
 | GROUP_3 server bounds | BLOCKED / NOT_AUTHORIZED | Server moderation/cost enforcement proposal exists; no approved product change or deployment |
 
@@ -171,7 +400,324 @@ timeout FAIL, unknown upload side effects and retained consumed Claims stay unch
 Rows above preserve chronological scoped outcomes; earlier R2 BLOCKED rows are
 historical, not a reversal of the latest isolated R2 PASS.
 
-## Controlled Local Main Merge Closure (2026-10-16)
+## Final Pre-Migration Compatibility And Recovery Review (2026-10-16)
+
+- Review branch:`codex/pre-migration-compatibility-recovery-20261016`,based on
+  `ca922f84c4d0eb4e6fbf64db3a08ecddf0979517`. Main remains
+  `fedf5627a7cd2a28a6f5c0732c333b4e2fad56bb`. Only the existing v1 Packet and
+  this unique baseline change in this review;no main,SQL,script or app edit.
+- Source association FOUND in existing evidence[A],not guessed from version152.
+  Rehashed original closure
+  `C:/Temp/ogh-a-deploy-readiness-20261010/final-recovery151-authorization/A_DEPLOY_FINAL_SMOKE_CLOSURE_RESUMED_SAFE.json`
+  matches its existing frozen SHA256
+  `30562abd0af842b2b0184248e06aff2bb75c196c05269d687dbcb73aa48ce70d`.
+  Its linked `A_DEPLOY_READ_ONLY_ACCEPTANCE_FINAL_SAFE.json` rehashes to
+  `ac6932e5c99601923012672718880df077801ad951a21ae42c9196b37647c7c7`.
+  That receipt records the exact Dashboard Build/commit link and same Build
+  version log:source88680a6eaab8de4123199f16b325ec0a430b0b86 ->
+  Buildd98da799-d41d-41dc-acaf-8c6675fd799a ->
+  Versionb2b62ec9-bb8d-4159-ac99-08fca5740134. Commit exists locally.
+- WORKER_SOURCE_IDENTITY=VERIFIED_BY_FROZEN_BUILD_RECEIPT_CHAIN. Distinguish:
+  Worker version last reverified by the existing audit2026-10-16T06:02:06Z;
+  full Git SHA verified by historical release/build documentary provenance;
+  build artifact/source byte equivalence UNKNOWN. No new binary comparison,
+  reproducible build,live app request or continuous state proof. Previous asset
+  build mismatch evidence remains intact. Future exact live-target precheck is
+  still required under separate authorization;drift rejects this source review.
+- Local default Wrangler OAuth is expired. It was not refreshed or used;no
+  credential was requested and no substitute high-privilege token was sought.
+  Optional provider GETs0/2 because the retained receipt chain was sufficient
+  for this source review. Production DB queries0;no API retry after401.
+- The actual receipt-linked old Git source was inspected for public ancestry,
+  reaction projections/self-like operations,authenticated summary queries,
+  circle comment management and quota RPC call shape. No old placeholder-RPC
+  dependency;quota parameters remain p_user_id,p_ip_hash,p_purpose,p_bytes.
+- Minimal local compatibility check only:reused cached Supabase Postgres17 and
+  existing fixture setup/cleanup plus exact executeReleasePhase,not the46-case
+  suite. Applied all4 stages in an owned isolated database and issued old-source
+  SELECT shapes as real anon/authenticated A/B/ADMIN roles where applicable.
+  Passed16 checks:4 isolation,3 static old-source contracts,1 existing-denial
+  baseline,8 phase checks (query/summary compatibility and invariant policies/
+  quota metadata at each stage),with role-specific subassertions.
+  An initial fixture incorrectly queried the auth-only summary as anon,got
+  legitimate42501,and was corrected to match the old route's401-before-query
+  contract. This was a fixture correction,not an application/migration fix.
+- Phase0 leaves the preexisting no-SELECT Reaction failure unchanged;do not
+  report that old defect repaired at alignment alone. Phase1 restores the exact
+  public read columns;auth summary returns the2 fixture public likes and hidden
+  reactions stay excluded. Phase2 is additive and unused by old code;old reply
+  display remains unfixed until separately approved app deployment. Phase3
+  leaves quota OID/definition/security/ACL untouched. At every stage other RLS
+  and self-write policies remain identical. No quota RPC/business E2E was run.
+  OLD_WORKER_COMPATIBILITY=PASS_OFFLINE_SOURCE_DATABASE_CONTRACT only,not a full
+  old Worker runtime/Production acceptance or artifact-equivalence assertion.
+- Cleanup PASS for both local fixtures:owned containers,anonymous volumes,
+  networks,clients and random in-memory credentials removed. Independent final
+  owner-label container/network listings empty. No temporary credential or test
+  source file persisted. Existing46 tests,56-file rebuild,RLS/R2/business/UI03
+  evidence reused,not rerun or relabeled as Production PASS.
+- Integration review:all56 main migration blobs/source bytes unchanged;
+  inventory57;all4 source/executed-body hashes and both script hashes match the
+  SAME v1 Packet. Diff to main is the1 guarded migration,2 reviewed scripts,
+  historical safeJSON and release/progress documents,not application/secret/
+  package/deployment changes. No untracked files. New migration+scripts remain
+  NOT merged to main. NEW_MIGRATION_INTEGRATION=
+  READY_FOR_SEPARATE_MAIN_INTEGRATION_APPROVAL;no integration grant is implied.
+- Recovery evidence is still the only unresolved technical evidence gate.
+  Prior401 proves no backup conclusion. Reviewed existing recovery package
+  `C:/Temp/ogh-manual-backup-preparation-20261010-v5/RECOVERY_REVIEW_NOT_AUTHORIZED.md`
+  records an old encrypted archive's actual restore failing on managed roles;
+  a synthetic restore PASS does not validate that archive. File completion time
+  2026-10-09T12:58:22.8839943Z is NOT a known MVCC snapshot or current restore
+  point. No archive was opened/decrypted. No current usable platform-backup or
+  Dashboard restore/PITR evidence was found in the reviewed materials.
+  BACKUP_AVAILABLE=UNKNOWN;RESTORE_PERMISSION=UNKNOWN;PITR_AVAILABLE=UNKNOWN.
+- Owner/existing authorized administrator need only provide non-secret existing
+  Dashboard metadata:exact Production ref/available backup;latest usable UTC
+  point/retention/coverage;PITR state/range;actual plan/role restore entitlement
+  and cost;downtime/loss/external-object limitations and actual restore-validation
+  status. A Restore button alone is not tested recovery;no paid PITR is required.
+  Object-level DDL/RLS forward remediation is not full disaster recovery.
+  If no acceptable existing backup exists,a separately approved encrypted
+  logical export and managed-role/extension restore validation may be considered
+  only with proven existingUSD0 resources. It is NOT authorized or proven now.
+- Same v1 Packet retains4-stage order,4 exact source/body hashes,timeouts,
+  partial-commit handling,atomic SQL+genuine ledger registration,non-overwrite
+  quota checks and independent authorizations. FOUR_STAGE_PACKET=
+  READY_FOR_OWNER_REVIEW,not executable approval. RECOVERY_STRATEGY=BLOCKED;
+  PRODUCTION_MIGRATION_PLAN=BLOCKED. Historical JSON/receipts/Claims unchanged.
+- NEXT_SINGLE_ACTION:owner provide the5 existing backup/recovery metadata points;
+  then separately approve reviewed main integration and the final execution
+  scope. No more Worker/Origin/UI03 investigation or historical QA replay.
+  GROUP1_LOCAL_CASES=10/14;remaining4;UI02 LOCAL_PARTIAL_PASS;UI03 BLOCKED;
+  RLS16/16_LOCAL_REUSED;R2 PASS_ISOLATED;PRODUCTION_PARITY UNKNOWN;
+  PRODUCTION_READ_REQUESTS=0;PRODUCTION_WRITES=0;DEPLOYMENTS=0;PUSH=NOT_EXECUTED;
+  MAX_ADDITIONAL_COST_USD=0;CATALOG_HOLD=ACTIVE;PUBLIC_BETA_GO=NOT_AUTHORIZED.
+
+## Production Release Blockers Offline Resolution (2026-10-16, Historical)
+
+- Scope:only new guarded Reaction policy alignment,minimal per-phase pg adapter,
+  directly related real local Postgres tests and existing release documents.
+  All original56 migration files,3 frozen migration hashes,main fedf5627 and
+  application source unchanged. New CLI-created migration count1;total57,not a
+  claim that the full57-file rebuild was rerun. Prior56/26/3 evidence is reused.
+- Local fixture reproduced the actual Production policy combination using
+  canonical policy/helper SQL,real anon/authenticated roles and existing image
+  auth.uid(). Claim context is a DB-level RLS fixture,NOT Auth/login/CAPTCHA PASS.
+  Before GRANT queries deny42501. After the original GRANT,A/B read hidden own
+  comment reactions and A read hidden reactions on A's post;anon stayed public.
+  Unrelated B still could not read A's hidden comment. Actual local expansion is
+  PROVEN,not a claim of exploited Production rows.
+- Independent migration20261016090712_align_comment_reaction_select_scope:
+  SHA256 `9aa23de3d7ef0f81d235376ca963e7930007455d353a32b6e9ef475a2943bd5b`.
+  Guarded ALTER of only legacy select_public USING to the existing public-read
+  helper. No DROP,other RLS,GRANT,helper or business-data changes. Unknown policy
+  shape/roles/table state fails. Canonical no-legacy and already-aligned cases
+  are no-ops. Execute BEFORE the older-numbered SELECT-GRANT migration in the
+  explicit Production plan;normal clean canonical replay can keep timestamp order.
+- After alignment,anon/A/B/ADMIN all retained public reactions and hidden ones
+  were rejected. Ordinary users cannot delete/insert as other users. Other
+  business RLS and self-write policy definitions remained unchanged.
+- Exact path:scripts/qa/release-migration-phases.mjs reuses the existing CA/target
+  parser,catalog pg adapter and installed pg. NO CLI/credential auto-connect/GO.
+  Four fixed source hashes,known57 filenames and8 historical version/name pairs;
+  unknown migration/history,stale object snapshot or bad order stops. Other53
+  SQL files never execute;no aliases/no-op files/manual ledger repair are used.
+  Future owner approval must bind the final commit,dependencies and trusted
+  before-state hash;do not simply accept whatever the live server returns.
+- Atomicity change is explicit:strip ONLY frozen outer BEGIN/final COMMIT,
+  preserve substantive SQL bytes and freeze executed-body hashes. Apply one
+  body and its genuine version/name/canonical-SQL ledger row in ONE transaction.
+  No ledger CREATE/ALTER,Vault,seed or role handling. Previous8 rows never change.
+  This new normal registration method is not manual repair and still needs
+  separate Production execution authorization. Four phases are not globally atomic.
+  Proposed future cap4 phase calls x15 client SQL dispatches plus2 bounded
+  read-only precondition/failure batches x4=68,6 connections,no retries;this
+  revised budget still needs independent approval and is not a network-packet cap.
+- Direct driver limits:connect10s,statement8s,lock1s,idle15s,query10s,phase60s,
+  bounded close5s with socket destruction/failure reporting. Startup/local GUCs
+  verified on the same local channel;actual8s statement and1s lock errors tested;
+  same connection/close timeout mechanisms tested at scaled150ms/25ms locally.
+  Lost COMMIT acknowledgement remains UNKNOWN_COMMIT,no retry;read-only state
+  reconciliation proved the committed pair. Reentry rejects an applied phase.
+- Rate-limit function remains existing-only on this release path;baseline absent
+  stops before dispatch. Actual local OID/body/security/ACL unchanged,with prior
+  exact Production fingerprint reused. Original adoption SQL is not rewritten.
+  Placeholder creation is checked for exact body/signature/security/EXECUTE ACL
+  before commit;unreviewed default grants would stop and roll back.
+- Latest focused local suite:46/46 PASS;only the affected permissions/transaction/
+  deadline/cleanup cases. Cached Supabase Postgres17 image,--pull=never,owned
+  disposable DB on loopback,no shared database. Original full Auth/RLS/business/
+  R2/UI03 suites were NOT rerun. Container/network/anonymous volume/clients and
+  in-memory random credentials cleaned;no persistent test credential file.
+  Initial local bootstrap fixture issues were corrected,not called product bugs.
+- Static recorded-old-source compatibility:comments.ts requires public ancestry,
+  existing reaction projections/mutations remain granted;summary's RLS-scoped
+  published counters do not justify reopening non-public reactions. Existing
+  legal public read shape passed locally. Current Worker-to-Git-SHA identity is
+  still not independently proven,so OLD_PRODUCTION_COMPATIBILITY=UNKNOWN for
+  actual Production,not PASS. Existing source/deployment proof is needed,not a
+  new full E2E or speculative current-source assertion.
+- Backup availability/restore point/PITR/permission/limitations still UNKNOWN
+  after prior401. Only ask owner/existing administrator for current Dashboard
+  metadata:available backup,usable UTC point/retention/coverage,PITR state/range,
+  plan/role restore entitlement/cost and actual restore limitations/validation.
+  Do not bypass401,buy PITR,create backup,request a high-privilege key or restore.
+- SAME v1 Packet has been consolidated to the4-phase proposal and records both
+  source and executed-body hashes. Historical JSON remains unchanged/not a
+  current binding. PRODUCTION_MIGRATION_PLAN=BLOCKED until backup/recovery and
+  actual deployed-source compatibility evidence,then independent owner review
+  of the4-phase change and normal authorization. No approvals prefilled.
+- NEXT_SINGLE_ACTION:owner provide existing backup/recovery metadata AND current
+  Worker-to-reviewed-source provenance/compatibility confirmation;review the
+  amended v1 Packet for separate execution authorization. No more QA platform work.
+  GROUP1 local10/14,remaining4;UI02 partial;UI03 BLOCKED;RLS16/16_LOCAL_REUSED;
+  R2 PASS_ISOLATED;PRODUCTION_PARITY UNKNOWN;PRODUCTION_REQUESTS=0;
+  PRODUCTION_WRITES=0;DEPLOYMENTS=0;PUSH=NOT_EXECUTED;CATALOG_HOLD=ACTIVE;
+  PUBLIC_BETA_GO=NOT_AUTHORIZED.
+
+## Production Migration Final Read-Only Preflight (2026-10-16, Historical)
+
+- Owner independently authorized bounded system/ledger/settings and backup
+  capability metadata only. No application/user data,RPC invocation,DDL,DML,
+  restore,backup creation,paid activation,push/deploy or migration dry-run/apply.
+  Only the existing Packet and this unique baseline were edited on
+  `codex/production-migration-packet-v1-20261016`;main stays
+  `fedf5627a7cd2a28a6f5c0732c333b4e2fad56bb`. All56 migrations and3 SQL SHA256s
+  remain unchanged. No historical QA was re-executed.
+- Exact project management metadata confirms `xcbnxzjlsvtgzixurcof`,
+  ACTIVE_HEALTHY,Postgres17.6.1.121;its organization plan is Free. This confirms
+  the queried project,not the credentials/connection of a future CLI migration.
+- Reaction extra policy definition is now CAPTURED,not just a name/hash:
+  `EXISTS (SELECT 1 FROM comments c WHERE c.id=comment_reactions.comment_id
+  AND c.status='published')`. Both Reaction SELECT policies are permissive for
+  anon/authenticated,no restrictive SELECT/ALL policy;RLS on,FORCE off.
+  Accessible policy uses the strict public-read helper. The extra path applies
+  comments RLS,which includes comment-author/post-author/staff branches. Thus a
+  published authored comment with inactive ancestry/hidden moderation can expose
+  its reaction through this OR path although the canonical public helper fails.
+  This is a static semantic counterexample,not proof of an actually accessed
+  private row. Actual data/runtime impact UNKNOWN;EFFECTIVE_RLS_SEMANTICS=RISK.
+  Current anon/auth Reaction privileges are absent;the proposed GRANT activates
+  the difference. OLD_PRODUCTION_COMPATIBILITY=BLOCKED. No policy/GRANT was changed.
+- Minimum proposed remedy requires separate offline owner review:align only the
+  obsolete extra Reaction SELECT policy with the canonical public-only contract,
+  preserving self-write/accessibility and all other RLS. Do not silently edit
+  the3 frozen migrations,rerun old authorization SQL or add unapproved SQL.
+- Complete ledger8 rows:20260518,20260703,20260815010632,20260902042807,
+  20260904101403,20260909195640,20261004003349,20261004014637. All3 target IDs
+  20261015072723/20261015074931/20261016061618 absent;placeholder overloads0.
+  Required ledger columns/PK exist,with additional nullable metadata columns.
+  With6 exact versions and2 known aliases,the56 canonical files have48 without
+  individual ledger entries,including45 NON-target legacy files. This is NOT
+  proof their effects are missing. Root db push cannot be authorized from this.
+  `--skip-vault` is not a migration selector. Exact reviewed history-only staging
+  with1 pending file per phase remains the safe normal-tool direction,but its
+  8/9/10-row history manifests are not frozen:EXACT_STAGED_MIGRATION_SCOPE=BLOCKED.
+- Quota exact LF body SHA256 is freshly verified:
+  `9be186f4d6d15e18c9141ced73f7145e7fe9913c1636e22a16b8ccb25d51321b`.
+  OID19382,one overload,all guarded security/config/signature/result/dependency
+  properties match. Full ACL only postgres/service_role EXECUTE,grantor postgres,
+  no grant options;anon/auth no EXECUTE. NON_OVERWRITE_READY;no function was
+  invoked or replaced. Presence/schema freeze and drift rejection still apply.
+- Each of4 DB requests used REPEATABLE READ READ ONLY,local statement8s/lock1s,
+  one bounded metadata SELECT and ROLLBACK. Current connector reset statement
+  timeout120s,lock0,idle0,transaction0;no postgres/database override returned.
+  Authenticator/user API timeouts do not cover migration DDL. CLI RESET ALL,
+  ledger initialization and separate post-COMMIT history INSERT reconfirmed
+  from installed source. Actual migration-client timeout/connection limits are
+  unproven. Keep PARTIAL_SUCCESS/UNKNOWN_COMMIT stops and no retry/history repair.
+- Backup inventory GET with the existing process-local management credential
+  returned401,without redirect/retry;no backup metadata obtained. Connector
+  project/org reads succeeded using their separate credential context. Do not
+  infer the connector expired or backups are absent from that401. Backup/PITR,
+  restore point/coverage/retention,restore entitlement and recoverability remain
+  UNKNOWN. No restore/upgrade/export performed. Free plan alone is not proof.
+- Request ledger:DB4/6,management3/4 (exact project,exact org,backup GET401),
+  total7 explicitly dispatched read operations;no retry. Provider-internal
+  connector network calls are not claimed separately hard-counted. Trusted
+  clock read during review2026-10-16T08:54:44Z;no invented per-request timestamps.
+- Detailed current adjudication is section8 of the SAME v1 Packet. Its companion
+  JSON remains the unchanged historical draft with its former Packet hash and
+  zero-read counters;it is NOT a binding/authorization for this revised document.
+  No new Packet version,UTC,Claim or GO created. PRODUCTION_MIGRATION_PLAN=BLOCKED.
+- NEXT_SINGLE_ACTION:owner review/approve only the minimal Reaction alignment,
+  exact per-phase staging/actual timeout and partial-commit recovery preparation,
+  with existing read-only backup/restore evidence or a separately reviewed
+  zero-cost recovery alternative. Do not approve migration execution yet.
+  GROUP1 remaining4/UI02 LOCAL_PARTIAL_PASS/UI03 BLOCKED/parity UNKNOWN retained;
+  RLS16/16_LOCAL and isolated R2 PASS reused. PRODUCTION_WRITES=0;DEPLOYMENTS=0;
+  PUSH=NOT_EXECUTED;CATALOG_HOLD=ACTIVE;PUBLIC_BETA_GO=NOT_AUTHORIZED.
+
+## Production Migration Packet v1 Review (2026-10-16, Historical Offline Draft)
+
+- Owner authorized OFFLINE review/preparation only. Packet:
+  `docs/ops/reconciliation/PRODUCTION_MIGRATION_EXECUTION_PACKET_V1_NOT_AUTHORIZED.md`;
+  hashes/tool/source markers and unresolved gates:
+  `docs/ops/reconciliation/production-migration-packet-v1-safe.json`.
+  STATUS=BLOCKED_FOR_EXECUTION,not a valid authorization/UTC/Claim/GO.
+- Three exact canonical migrations and3 SHA256s match the existing review:
+  reaction20261015072723,placeholder20261015074931,quota baseline20261016061618.
+  All56 migration files remain untouched. Existing26/26 formal-only local and
+  3/3 static evidence reused;no full RLS,anonymous,business,R2 or UI03 rerun.
+  Main remainsfedf5627;product candidate1de74e19,type ratchet PASS,new0,legacy56.
+- Newly relevant saved-evidence discrepancy:Production audit lists BOTH
+  comment_reactions_select_public and comment_reactions_select_accessible as
+  permissive SELECT policies;canonical clean rebuild retains only accessible.
+  Policy names/MD5s prove a set difference,not exact predicates or an exploit.
+  Since permissive policies combine with OR,do not activate new SELECT grants
+  until actual effective scope/helper dependencies are independently reviewed.
+  No speculative RLS change or claim that Production permissions are broken.
+- Quota SQL's existing-object path is non-overwriting and locally proven through
+  normal tooling. Production only has a prior whitespace-normalized MD5 match;
+  the stronger exact LF body SHA256/full ACL and existing presence still need
+  current verification. Missing-on-clean-replay creation is NOT approved on
+  Production;DDL freeze and drift stops remain mandatory.
+- Installed CLI2.115.0 help AND embedded code reviewed offline. migration up
+  invokes Vault handling and has no skip-vault option;db push supports
+  --skip-vault. Future route,not runnable now:is a frozen history-compatible
+  phase workdir with exactly1 pending reviewed migration,db push --linked with
+  exact project-ref,--skip-vault,first dry-run,then separately approved apply.
+  No include-all,roles,seeds,root full-pending invocation or manual ledger repair.
+  Historical alias/provider versions mean the local synthetic replay mirror
+  cannot be used as a Production history directory. Current stage manifest is
+  unbound:BLOCKED,not hidden no-op history files or automatic reconciliation.
+- CLI source proves explicit BEGIN/COMMIT statements are executed sequentially,
+  then its own ledger INSERT occurs. Body may commit before the ledger row:
+  whole-release AND body-plus-history atomicity are NOT guaranteed. A later
+  rollback cannot undo a completed COMMIT. Preserve PARTIAL_SUCCESS or
+  UNKNOWN_COMMIT,hold code release,inspect metadata;no automatic replay/repair.
+  CLI also performs separate ledger CREATE/ALTER IF NOT EXISTS with local lock4s;
+  require already correct ledger shape and account for locks even on no-op DDL.
+- First2 files have no session-local timeouts. Proposed migration connection
+  statement8s/lock1s/idle15s and phase60s deadline are NOT yet proven. Do not assume
+  PGOPTIONS propagates through this CLI runtime. No timeout or migration patch
+  made. These conditions stay blocked until the actual route is established.
+- No existing current backup/PITR inventory,usable restore point,restore rights
+  or rehearsal evidence found in reviewed local release records. Readiness is
+  UNKNOWN,not invented backup availability or proof of no backup. No paid
+  PITR/resource activation,data dump or restoration is authorized. Recovery is
+  independently reviewed forward handling;no automatic destructive down SQL,
+  drop existing quota RPC,ledger deletion or pre-Hardening Version151 fallback.
+- Historical source compatibility appears additive,but effective Reaction scope
+  and actual deployed Git SHA remain unresolved:OLD_PRODUCTION_COMPATIBILITY=
+  UNKNOWN. Only after gates pass:DB phase1/check,phase2/check,phase3/check,then
+  independent code push/deploy approval. DB failure must hold dependent new API.
+  Do not assert that local main merge completed Production release.
+- NEXT_SINGLE_ACTION:owner review/authorize one bounded READ ONLY prerequisite
+  check covering complete history,effective Reaction semantics,exact quota
+  fingerprint/security and current existing backup/restore permission evidence.
+  This is not permission to perform that check or write in the present task.
+  Future proposed ceiling3 dry runs,3 phase applies,6 read-only metadata batches
+  including failure reserve;internal CLI network totals UNKNOWN,not a hard cap.
+  Operator/UTC,cost/privacy/partial-success acceptance all remain unapproved.
+- Existing GROUP1_LOCAL=10/14,remaining4,UI02 partial,UI03 BLOCKED,
+  RLS16/16_LOCAL_REUSED,R2 PASS_ISOLATED,PRODUCTION_PARITY UNKNOWN preserved.
+  PRODUCTION_READ_REQUESTS=0;PRODUCTION_WRITES=0;DEPLOYMENTS=0;
+  PUSH=NOT_EXECUTED;MAX_ADDITIONAL_COST_USD=0;CATALOG_HOLD=ACTIVE;
+  GROUP_2/3=NOT_AUTHORIZED;PUBLIC_BETA_GO=NOT_AUTHORIZED.
+
+## Controlled Local Main Merge Closure (2026-10-16, Historical Integration Record)
 
 - Owner authorized one local merge plus necessary local build/Git/documentation
   verification only. Main was already checked out in the integration checkout
